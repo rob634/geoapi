@@ -1,4 +1,4 @@
-from azure.core.exceptions import AzureError
+
 from azure.identity import DefaultAzureCredential
 #from azure.keyvault.secrets import SecretClient
 
