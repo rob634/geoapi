@@ -6,13 +6,13 @@ from utils import logger
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 
-@app.queue_trigger(arg_name="azqueue",
-                   queue_name="rmhazureqstorage",
-                   connection="rmhazureqstrorage_STORAGE")
+#@app.queue_trigger(arg_name="azqueue",
+#                   queue_name="rmhazureqstorage",
+#                   connection="rmhazureqstrorage_STORAGE")
 
-def geoapi(azqueue: func.QueueMessage):
-    logger.info('Python Queue trigger processed a message: %s',
-                azqueue.get_body().decode('utf-8'))
+#def geoapi(azqueue: func.QueueMessage):
+#    logger.info('Python Queue trigger processed a message: %s',
+#                azqueue.get_body().decode('utf-8'))
 
 
 @app.route(route='test_pulse', methods=['GET', 'POST'])

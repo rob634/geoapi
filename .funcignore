@@ -12,3 +12,5 @@ etc/
 etc*
 *test*
 *local*
+*pycache*
+*__pycache__\
