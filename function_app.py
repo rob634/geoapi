@@ -1,7 +1,8 @@
 import azure.functions as func
-
+from azure.identity import DefaultAzureCredential
+from azure.storage.queue import QueueServiceClient
 from api_requests import BaseRequest
-from utils import logger
+from utils import *
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
@@ -23,14 +24,32 @@ def test_pulse(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse(body=message,status_code=200)
 
 
-@app.route(route='test_base', methods=['GET', 'POST'])
+@app.route(route='test_q', methods=['GET', 'POST'])
 
-def test_base(req: func.HttpRequest) -> func.HttpResponse:
-    logger.info('Azure Function recieved a test_base request')
+def test_q(req: func.HttpRequest) -> func.HttpResponse:
+    logger.info('Azure Function recieved a test_q request')
     
     B = BaseRequest(req)
     if B.response:
         return B.response
-    else:
-        return B.return_success('BaseRequest initialized',return_log=True)
     
+    try:
+        message = B.json.get('message','EMPTY MESSAGE')
+        logger.info(message)
+    except Exception as e:
+        return B.return_error(f'Error: {e}')
+    
+    try:
+        queue_service_client = QueueServiceClient(
+            account_url=f"https://{STORAGE_ACCOUNT_NAME}.queue.core.windows.net",
+            credential=DefaultAzureCredential()
+        )
+
+        q_client = queue_service_client.get_queue_client(STORAGE_QUEUE_NAME)
+        q_client.send_message(message)
+    except Exception as e:
+        return B.return_error(f'Error: {e}')
+    
+    return B.return_success(f'Message "{message}" sent to Queue',return_log=True)
+
+  

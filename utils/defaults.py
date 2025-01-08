@@ -3,7 +3,7 @@
 ENV = 'rmhazureq'
 
 STORAGE_ACCOUNT_NAME = f'rmhazureqstrorage'
-#VAULT_NAME = f'itses-gddatahub-{ENV}-keys'
+STORAGE_QUEUE_NAME = f'rmhazureqstorage'
 ENTERPRISE_GEODATABASE_HOST = f'rmhazureqdb.postgres.database.azure.com'
 
 FUNCTION_APP_NAME = f'rmhazureqfn'
