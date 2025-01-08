@@ -9,10 +9,10 @@ class BaseRequest:
 
         logger.debug('Initializing BaseRequest')
         self.response = None
-        self._log_init()
+        
         self._req_init(req)
 
-        self.log_obj['request']['content_type'] = self.content_type
+        self._log_init()
 
         if use_json:
             self._json_init()
@@ -34,7 +34,8 @@ class BaseRequest:
         logger.debug('Initializing log object')
         self.log_obj = {
             'init_time':datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'request':{},
+            'request':{
+                'content_type':self.content_type,},
             'logs':{}
                         }
         self.log_index = 0
