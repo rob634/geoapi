@@ -5,7 +5,7 @@ from azure.storage.queue import QueueServiceClient
 from utils import *
 
 
-def json_from_request(req:func.HttpRequest):
+'''def json_from_request(req:func.HttpRequest):
 
     try:
         content_type = req.headers.get('Content-Type')
@@ -33,7 +33,7 @@ def json_from_request(req:func.HttpRequest):
     else:
         message_out = 'Content-Type must be application/json'
         logger.error(message_out)
-        raise Exception(message_out)
+        raise Exception(message_out)'''
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
@@ -52,7 +52,7 @@ def test_pulse(req: func.HttpRequest) -> func.HttpResponse:
     
     return func.HttpResponse(body=message,status_code=200)
 
-
+'''
 @app.route(route='test_q', methods=['GET', 'POST'])
 def test_q(req: func.HttpRequest) -> func.HttpResponse:
     logger.info('Azure Function recieved a test_q request')
@@ -84,4 +84,4 @@ def test_q(req: func.HttpRequest) -> func.HttpResponse:
         
         return func.HttpResponse(body=f'Error: {e}',status_code=500)
     
-
+'''
