@@ -14,9 +14,7 @@ SP_CLIENT_ID = '0de34300-a946-4084-94a2-e5ca038b6aa8'
 SP_TENANT_ID = 'bed4cf02-1d3c-4ba8-b420-cee7f1a868b7'
 SP_SECRET_VALUE = 'eqG8Q~a9QlSKhspaxOsaIrOYHHlVjfCVbpgnUbNW'
 SP_SECRET_ID = '14233354-3032-451f-b557-5d4297aadb47'
-#ArcGIS Enterprise
-DEFAULT_PORTAL_CONTEXT_NAME = 'portal'
-DEFAULT_PORTAL_ADMIN_USER = 'ddhgeo'
+
 SP_SCOPE = 'api://0de34300-a946-4084-94a2-e5ca038b6aa8'
 DEFAULT_VECTOR_CONTEXT_NAME = 'hosting'
 ENTERPRISE_GEODATABASE_DB = 'geodb'
@@ -61,15 +59,3 @@ VALID_EXTENSIONS = [
         ]
 
 
-SECRETS = {
-        'acs-path':'',
-        'cloudstore-id':'',
-        'cloudstore-path':'',
-        'cname':'',
-        'db-host':'',
-        'db-name':'',
-        'enterprise-credential':'',
-        'enterprise-user':'',
-        'gisowner-credential':'',
-        'sde-credential':''
-        }

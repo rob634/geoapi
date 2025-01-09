@@ -5,48 +5,25 @@ from utils import *
 
 
 class BaseRequest:
-    def __init__(self, req:func.HttpRequest, use_json:bool=True):
+    def __init__(self, req:func.HttpRequest):
 
         logger.debug('Initializing BaseRequest')
         self.response = None
         
-        self._req_init(req)
-
-        self._log_init()
-
-        if use_json:
-            self._json_init()
-
-        logger.info('BaseRequest initialized')
-    
-    def _req_init(self,req:func.HttpRequest) -> None:
-        
-        self.req = req
         try:
-            self.content_type = self.req.headers.get('Content-Type')
-            logger.debug(f'Content-Type: {self.content_type}')
+            content_type = req.headers.get('Content-Type')
+            logger.debug(f'Content-Type: {content_type}')
+            if not content_type:
+                raise Exception('No Content-Type found in request headers')
         except Exception as e:
-            message_out = f'Could not get content type from request headers {e}'
-            self.response = self.return_error(message_out)
-        return
-    
-    def _log_init(self) -> None:
-        logger.debug('Initializing log object')
-        self.log_obj = {
-            'init_time':datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'request':{
-                'content_type':self.content_type,},
-            'logs':{}
-                        }
-        self.log_index = 0
-        return
-    
-    def _json_init(self) -> None:
-        
-        if self.content_type and 'application/json' in self.content_type:
+            self.response = self.return_error(
+                f'Could not get content type from request headers {e}'
+            )
+
+        if 'application/json' in content_type:
             logger.debug('application/json found, parsing JSON')
             try:
-                self.json = self.req.get_json()
+                self.json = req.get_json()
                 logger.debug(f'JSON: {self.json}')
                 self.log_obj['request']['json'] = self.json
             except Exception as e:
@@ -56,7 +33,14 @@ class BaseRequest:
             message_out = 'Content-Type must be application/json'
             self.response = self.return_error(message_out)
             
-        return
+        self.log_obj = {
+            'init_time':datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'request':{'content_type':content_type},
+            'logs':{}
+        }
+        self.log_index = 0
+        
+        logger.info('BaseRequest initialized')
                 
     def return_error(self,
                     message:str=None,
