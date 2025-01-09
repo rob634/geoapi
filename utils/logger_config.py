@@ -1,11 +1,9 @@
 
 from azure.identity import DefaultAzureCredential
-#from azure.keyvault.secrets import SecretClient
 
 from datetime import datetime
 import io
 import logging
-import sys
 
 from .defaults import *
 
