@@ -1,29 +1,49 @@
-
-from azure.identity import DefaultAzureCredential
-
-from datetime import datetime
-import io
+import os
 import logging
+from logging.handlers import MemoryHandler
 
-from .defaults import *
+BUFFER_SIZE = 1
 
-  
+class BufferedLogger(logging.Logger):
+    def __init__(self, name, level=logging.NOTSET):
+        super().__init__(name, level)
+        self.memory_handler = None
 
-class CustomFormatter(logging.Formatter):
+    def set_memory_handler(self, memory_handler):
+        self.memory_handler = memory_handler
+        self.addHandler(memory_handler)
+
+    def flush_logger(self):
+        if self.memory_handler:
+            self.memory_handler.flush()
+
+class ColorFormatter(logging.Formatter):
     """Custom formatter to add colors to log messages."""
+    def _green(self, string):
+        return f'\033[92m{string}\033[0m'
+    
+    def _yellow(self, string):
+        return f'\033[93m{string}\033[0m'
+    
+    def _red(self, string):
+        return f'\033[91m{string}\033[0m'
+    
+    def _blue(self, string):
+        return f'\033[94m{string}\033[0m'
+    
     def format(self, record):
         # Save the original format
         original_format = self._style._fmt
 
         # Define format with color for error messages
         if record.levelno == logging.ERROR:
-            self._style._fmt = "\033[91m" + original_format + "\033[0m"  # Red color
+            self._style._fmt = self._red(original_format)
         elif record.levelno == logging.WARNING:
-            self._style._fmt = "\033[38;5;214m" + original_format + "\033[0m"  # Yellow color
+            self._style._fmt = self._yellow(original_format)
         elif record.levelno == logging.INFO:
-            self._style._fmt = "\033[94m" + original_format + "\033[0m"  # Blue color
-        elif record.levelno == logging.DEBUG:
-            self._style._fmt = "\033[92m" + original_format + "\033[0m"  # Green color
+            self._style._fmt = self._green(original_format)
+        #elif record.levelno == logging.DEBUG:
+        #    self._style._fmt = self._blue(original_format)
 
         # Format the message
         result = logging.Formatter.format(self, record)
@@ -32,27 +52,51 @@ class CustomFormatter(logging.Formatter):
         self._style._fmt = original_format
 
         return result
- 
 
-formatter = CustomFormatter(
-    fmt='%(asctime)s - %(levelname)s - %(processName)s - %(funcName)s line %(lineno)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    style='%', 
-    )
+class ListHandler(logging.Handler):
+    """Custom logging handler to store log messages in a list."""
+    def __init__(self):
+        super().__init__()
+        self.log_messages = []
 
-logger = logging.getLogger('AzureFunctionAppLogger')
+    def emit(self, record):
+        # Add log messages with WARNING or higher level to the list
+        if record.levelno >= logging.WARNING:
+            self.log_messages.append(self.format(record))
+
+try:
+    amd64 = 'AMD64' in os.environ['PROCESSOR_ARCHITECTURE']
+except Exception as e:
+    amd64 = False
+    
+if amd64:
+    formatter_class = ColorFormatter
+else:
+    formatter_class = logging.Formatter
+    
+formatter = formatter_class(
+    fmt="%(asctime)s - %(levelname)s - %(processName)s - %(funcName)s line %(lineno)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    style="%",
+)
+
+logger = BufferedLogger("AzureFunctionAppLogger")
 logger.setLevel(logging.DEBUG)
 logger.propagate = False
 
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
 
-log_stream = io.StringIO()
-stream_handler = logging.StreamHandler(log_stream)
-stream_handler.setFormatter(formatter)
-logger.addHandler(stream_handler)
+if amd64:
+    logger.addHandler(console_handler)
 
-#db_handler = DatabaseLog()
+memory_handler = MemoryHandler(
+    capacity=BUFFER_SIZE, 
+    flushLevel=logging.ERROR,
+    target=console_handler)
 
-#logger.addHandler(db_handler)
+logger.set_memory_handler(memory_handler)
+
+log_list = ListHandler()
+log_list.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
+logger.addHandler(log_list)
