@@ -12,6 +12,7 @@ from shapely import (
 
 from utils import (
     logger,
+    DATABASE_ALLOWED_CHARACTERS,
     DEFAULT_DB_USER,
     DEFAULT_EPSG_CODE,
     DEFAULT_GEOMETRY_NAME,
@@ -80,7 +81,7 @@ class VectorHandler:
 
     # GDF validation
     
-    def validate_geometry_name(self, gdf: GeoDataFrame) -> GeoDataFrame:
+    def enforce_geometry_name(self, gdf: GeoDataFrame) -> GeoDataFrame:
         geom_name = self.geometry_name if self.geometry_name else DEFAULT_GEOMETRY_NAME
         logger.debug("Validating geometry name")
         if gdf.geometry.name != geom_name:
@@ -100,7 +101,7 @@ class VectorHandler:
             
         return gdf
     
-    def validate_reserved_words(self, gdf: GeoDataFrame, suffix:str=None) -> GeoDataFrame:
+    def enforce_column_names(self, gdf: GeoDataFrame, suffix:str=None) -> GeoDataFrame:
         logger.debug("Validating reserved words in gdf")
         if not suffix:
             suffix = "_dbrnm1"
@@ -108,19 +109,40 @@ class VectorHandler:
         cols_in = list()
         cols_out = list()
         for _name in column_names:
+            logger.debug(f"Validating column name: {_name}")
             if _name == 'objectid':
                 logger.warning("Reserved word 'objectid' found in column names and will be renamed")
-            if _name in DATABASE_RESERVED_WORDS:
+                cols_in.append(_name)
+                cols_out.append(f"{_name}{suffix}")
+            elif _name in DATABASE_RESERVED_WORDS:
                 logger.warning(f"Column name <{_name}> will be renamed to {_name}{suffix}")
                 cols_in.append(_name)
                 cols_out.append(f"{_name}{suffix}")
+
+            elif any(_char not in DATABASE_ALLOWED_CHARACTERS for _char in _name):
+                
+                invalid_chars = []
+                for _char in _name:
+                    if _char not in DATABASE_ALLOWED_CHARACTERS:
+                        invalid_chars.append(_char)
+                cols_in.append(_name)
+                name_out = _name
+                for _char in invalid_chars:
+                    name_out = name_out.replace(_char, "_")
+                logger.warning(f"Column name <{_name}> contains invalid characters - will be replaced <{name_out}>")
+                cols_out.append(f"{name_out}")
+                    
             elif _name[0].isdigit():
-                logger.warning(f"Column name <{_name}> will be renamed to c{_name}{suffix}")
+                logger.warning(f"Column name <{_name}> starts with a digit and will be renamed to c{_name}{suffix}")
                 cols_in.append(_name)
                 cols_out.append(f"c{_name}{suffix}")
-                
+                      
         if cols_in:
-            logger.warning(f"Reserved words found in column names: {cols_in}")
+            logger.warning(f"Invalid column names found in: {cols_in}")
+            if len(cols_out) != len(set(cols_out)):
+                error_message = f"Duplicate column names found in {cols_out} after validation please fix the column names to be uniuqe and contain only {DATABASE_ALLOWED_CHARACTERS}"
+                logger.critical(error_message)
+                raise ValueError(error_message)
             try:
                 new_column_dict = dict(zip(cols_in, cols_out))
                 logger.debug(f"Renaming columns: {new_column_dict}")     
@@ -452,7 +474,7 @@ class VectorHandler:
                 raise VectorHandlerError(error_message)
         
         if dropped_count > 0:
-            logger.warning(f"Total invalid geometries removed: {dropped_count}")
+            logger.warning(f"Total invalid geometries removed: {dropped_count} out of {gdf_length}")
             if len(gdf) == 0:
                 logger.critical(
                     f"All geometries removed from GeoDataFrame: {dropped_count} invalid geometries"
@@ -476,7 +498,11 @@ class VectorHandler:
             epsg_code = DEFAULT_EPSG_CODE
             
         logger.debug(f"Updating GeoDataFrame CRS to EPSG:{epsg_code}")
-
+        if not gdf.crs:
+            logger.warning("GeoDataFrame does not have a CRS set")
+            logger.debug("Setting GeoDataFrame CRS to EPSG:4326")
+            gdf = gdf.set_crs(f"EPSG:{epsg_code}")
+            
         if gdf.crs.to_string() == f"EPSG:{epsg_code}":
             logger.info(f"GeoDataFrame is already in EPSG:{epsg_code}")
         else:
@@ -522,25 +548,27 @@ class VectorHandler:
         
         # Column Names
         try:
+            logger.debug("Checking geometry name")
+            gdf = self.enforce_geometry_name(gdf=gdf)
+            logger.info("Geometry name validation completed")
+        except Exception as e:
+            logger.error("Error validating geometry name")
+            raise e
+        
+        try:
+            logger.debug("Checking reserved words in column names")
+            gdf = self.enforce_column_names(gdf=gdf)
+            logger.info("Reserved words validation completed")
+        except Exception as e:
+            logger.error("Error validating reserved words in column names")
+            raise e
+
+        try:
             logger.debug("Checking lowercase column names")
             gdf = self.lowercase_column_names(gdf=gdf)
             logger.info("Lowercase validation completed")
         except Exception as e:
             logger.error("Error validating lowercase column names")
-            raise e
-        try:
-            logger.debug("Checking reserved words in column names")
-            gdf = self.validate_reserved_words(gdf=gdf)
-            logger.info("Reserved words validation completed")
-        except Exception as e:
-            logger.error("Error validating reserved words in column names")
-            raise e
-        try:
-            logger.debug("Checking geometry name")
-            gdf = self.validate_geometry_name(gdf=gdf)
-            logger.info("Geometry name validation completed")
-        except Exception as e:
-            logger.error("Error validating geometry name")
             raise e
         
         # Column types

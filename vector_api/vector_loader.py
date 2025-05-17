@@ -12,6 +12,7 @@ from pandas import read_csv as pd_read_csv
 #from pyogrio.errors import DataLayerError
 #from osgeo import ogr
 from shapely import Point, wkt
+from shapely.errors import WKTReadingError, ShapelyError
 
 from api_clients import StorageHandler
 
@@ -286,30 +287,19 @@ class VectorLoader:
         if isinstance(layer_name,str):
             logger.info(f"Layer name provided: {layer_name}")
 
-        elif False:
-            logger.warning(f"Layer name not provided, retrieving layer names from file {vector_file_name}")
-            try:
-                layer_list = self.get_gpkg_layers(vector_file_name)
-            except Exception as e:
-                error_message = f"VectorHandler.gpkg_to_gdf error reading layers from gpkg {vector_file_name}: {e}"
-                logger.error(error_message)
-                
-                raise e
-            
-            if len(layer_list) == 1:
-                layer_name = layer_list[0]
-                logger.info(f"One layer found in gpkg file {vector_file_name}: {layer_name}")
-            elif len(layer_list) > 1:
-                logger.warning(f"Multiple layers found in gpkg file {vector_file_name}: {layer_list}")
-                logger.warning(f"Using first layer: {layer_list[0]}")
-                layer_name = layer_list[0]
-            else:
-                error_message = f"No layers found in gpkg file {vector_file_name}"
-                logger.error(error_message)
-                raise ValueError(error_message)
         else:
             logger.error(f"GPKG requires layer name to be provided")
+            
             raise ValueError(f"GPKG requires layer name to be provided")
+        
+        if self.storage.blob_exists(blob_name=vector_file_name, container_name=self.storage.workspace_container_name):
+            logger.info(f"File {vector_file_name} found in container {self.storage.workspace_container_name}")
+        else:
+            error_message = f"File {vector_file_name} not found in container {self.storage.workspace_container_name}"
+            logger.error(error_message)
+            
+            raise FileNotFoundError(error_message)
+        
         try:
             logger.debug(f"Reading gpkg file {vector_file_name} from blob storage")
             bytes_data = self.storage.blob_to_bytesio(vector_file_name)
@@ -318,14 +308,23 @@ class VectorLoader:
             
             return gdf
         
-        #except DataLayerError as e:
-        #    error_message = f"{layer_name} could not be found in gpkg {vector_file_name}: {e}"
-        #    logger.error(error_message)
-        #    raise ValueError(error_message)
-        
+        except ValueError as e:
+            if "not found" in str(e):
+                
+                error_message = f"Layer {layer_name} not found in GeoPackage {vector_file_name}: {e}"
+                logger.error(error_message)
+                
+            else:
+                error_message = f"VectorHandler.gpkg_to_gdf error reading data for {vector_file_name} from container: {e}"
+                logger.error(error_message)
+                
+            raise e
+            
         except Exception as e:
+            
             error_message = f"VectorHandler.gpkg_to_gdf error reading data for {vector_file_name} from container: {e}"
             logger.error(error_message)
+            
             raise e
 
 
@@ -336,6 +335,7 @@ class VectorLoader:
         if not isinstance(df, DataFrame):
             error_message = f"Invalid DataFrame provided: {type(df)}"
             logger.error(error_message)
+            
             raise ValueError(error_message)
     
         df_len = len(df)
@@ -379,11 +379,13 @@ class VectorLoader:
             except Exception as e:
                 error_message = f"Error building GeoDataFrame from lat/lon table {lat_name}, {lon_name}: {e}"
                 logger.error(error_message)
-                raise Exception(error_message)
+                
+                raise e
             
         else:
             error_message = f"lat_name: <{lat_name}> and lon_name: <{lon_name}> not found in DataFrame columns"
             logger.error(error_message)
+            
             raise ValueError(error_message)
 
     def wkt_df_to_gdf(self, df: DataFrame, wkt_column: str):
@@ -391,14 +393,33 @@ class VectorLoader:
             if wkt_column in df.columns:
                 try:
                     logger.debug(f"Loading WKT data from DataFrame column {wkt_column} into GeoDataFrame")
-                    gdf = GeoDataFrame(df, geometry=df[wkt_column].apply(wkt.loads))
+                    gdf = GeoDataFrame(df, geometry=df[wkt_column].apply(wkt.loads),crs=DEFAULT_CRS_STRING)
                     logger.info(f"GeoDataFrame created from WKT table {wkt_column} with {len(gdf)} rows")
                     
                     return gdf
                 
+                except WKTReadingError as e:
+                    error_message = f"WKTReadingError reading data from DataFrame column {wkt_column}: {e}"
+                    logger.error(error_message)
+                    
+                    raise e
+                
+                except ShapelyError as e:
+                    error_message = f"ShapelyError reading data from DataFrame column {wkt_column}: {e}"
+                    logger.error(error_message)
+                    
+                    raise e
+                
+                except TypeError as e:
+                    error_message = f"TypeError reading data from DataFrame column {wkt_column}: {e}"
+                    logger.error(error_message)
+                    
+                    raise e
+                
                 except Exception as e:
                     error_message = f"Error building GeoDataFrame from WKT table {wkt_column}: {e}"
                     logger.error(error_message)
+                    
                     raise VectorHandlerError(f"Could not build GeoDataFrame from WKT table {e}")
             else:
                 error_message = f"WKT column {wkt_column} not found in DataFrame columns {df.columns}"
@@ -619,7 +640,7 @@ class VectorLoader:
     @check_storage
     def geojson_to_gdf(self, vector_file_name: str):
         
-        if self.storage.blob_exists(vector_file_name):
+        if self.storage.blob_exists(blob_name=vector_file_name, container_name=self.storage.workspace_container_name):
             logger.info(f"File {vector_file_name} found in container")
         else:
             error_message = f"File {vector_file_name} not found in container {self.storage.workspace_container_name}"
@@ -840,7 +861,7 @@ class VectorLoader:
         cls,
         file_name: str,
         file_type: str = None,
-        layer_name: list = None,
+        layer_name: str = None,
         lat_name: str = None,
         lon_name: str = None,
         wkt_column: str = None,
@@ -874,7 +895,8 @@ class VectorLoader:
         # Check if file exists
         try:
             logger.debug(f"Checking if blob <{file_name}> exists in container <{instance.storage.workspace_container_name}>")
-            file_exists = instance.storage.blob_exists(file_name)
+            file_exists = instance.storage.blob_exists(
+                blob_name=file_name,container_name=instance.storage.workspace_container_name)
             
             if file_exists:
                 logger.info(f"File {file_name} found in container")
@@ -902,7 +924,7 @@ class VectorLoader:
             logger.debug(f"Inferring file type from {file_name}")
             instance.file_extension = instance.get_file_extension(file_name)
             logger.info(f"File type inferred: {instance.file_extension}")
-            logger.info(f"File type matched to {instance.loader}")
+            #logger.info(f"File type matched to {instance.loader}")
         
         except ValueError as e:
             error_message = f"Invalid filename or file extension: {e}"

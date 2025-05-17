@@ -18,7 +18,7 @@ class BufferedLogger(logging.Logger):
             self.memory_handler.flush()
 
 class ColorFormatter(logging.Formatter):
-    """Custom formatter to add colors to log messages."""
+
     def _green(self, string):
         return f'\033[92m{string}\033[0m'
     
@@ -27,28 +27,18 @@ class ColorFormatter(logging.Formatter):
     
     def _red(self, string):
         return f'\033[91m{string}\033[0m'
-    
-    def _blue(self, string):
-        return f'\033[94m{string}\033[0m'
-    
+
     def format(self, record):
-        # Save the original format
         original_format = self._style._fmt
 
-        # Define format with color for error messages
         if record.levelno == logging.ERROR:
             self._style._fmt = self._red(original_format)
         elif record.levelno == logging.WARNING:
             self._style._fmt = self._yellow(original_format)
         elif record.levelno == logging.INFO:
             self._style._fmt = self._green(original_format)
-        #elif record.levelno == logging.DEBUG:
-        #    self._style._fmt = self._blue(original_format)
 
-        # Format the message
         result = logging.Formatter.format(self, record)
-
-        # Restore the original format
         self._style._fmt = original_format
 
         return result
@@ -79,23 +69,26 @@ formatter = formatter_class(
     datefmt="%Y-%m-%d %H:%M:%S",
     style="%",
 )
-
-logger = BufferedLogger("AzureFunctionAppLogger")
-logger.setLevel(logging.DEBUG)
-logger.propagate = False
-
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(formatter)
 
 if amd64:
+    logger = logging.getLogger("LocalLogger")
     logger.addHandler(console_handler)
 
-memory_handler = MemoryHandler(
-    capacity=BUFFER_SIZE, 
-    flushLevel=logging.ERROR,
-    target=console_handler)
+else:
+    
+    logger = BufferedLogger("AzureFunctionAppLogger")
+    memory_handler = MemoryHandler(
+        capacity=BUFFER_SIZE, 
+        flushLevel=logging.ERROR,
+        target=console_handler)
+    
+    logger.set_memory_handler(memory_handler)
+    
+logger.setLevel(logging.DEBUG)
+logger.propagate = False
 
-logger.set_memory_handler(memory_handler)
 
 log_list = ListHandler()
 log_list.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))

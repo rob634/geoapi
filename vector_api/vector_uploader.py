@@ -9,15 +9,15 @@ from geopandas import GeoDataFrame
 from psycopg2 import sql
 from pyproj import CRS
 
-from database_client import DatabaseClient
+from api_clients import DatabaseClient
 from vector_api import VectorHandler
 from utils import logger
 from utils import (
     DEFAULT_GEOMETRY_NAME,
-    DEFAULT_SCHEMA,
+    HOSTING_SCHEMA_NAME,
     VectorHandlerError,
-    DEFAULT_DB_NAME,
-    DEFAULT_DB_USERNAME,
+    ENTERPRISE_GEODATABASE_DB,
+    DEFAULT_DB_USER,
     DEFAULT_EPSG_CODE,
     DATABASE_ALLOWED_CHARACTERS,
     DATABASE_RESERVED_WORDS,
@@ -43,15 +43,15 @@ class EnterprisePostGIS(DatabaseClient):
         geometry_name=None,  # testing only, this is set globally
         ):
         # database config
-        db_user = db_user if db_user else DEFAULT_DB_USERNAME
-        db_name = DEFAULT_DB_NAME
+        db_user = db_user if db_user else DEFAULT_DB_USER
+        db_name = ENTERPRISE_GEODATABASE_DB
         super().__init__(db_user=db_user, db_name=db_name, credential=credential)
 
         # instance attributes
         self.column_dict = column_dict
         self.epsg_code = epsg_code if epsg_code else DEFAULT_EPSG_CODE
         self.geometry_name = geometry_name if geometry_name else DEFAULT_GEOMETRY_NAME
-        self.schema_name = schema_name if schema_name else DEFAULT_SCHEMA
+        self.schema_name = schema_name if schema_name else HOSTING_SCHEMA_NAME
         
         self.gdf = None
         self.geometry_type = geometry_type
@@ -112,6 +112,11 @@ class EnterprisePostGIS(DatabaseClient):
         column_names = list(gdf.columns)
         if 'objectid' in column_names:
             raise ValueError("Column name 'objectid' is reserved - cannot be used as a column name")
+        
+        if len(column_names) == len(set(column_names)):
+            logger.info("GeoDataFrame column names are unique")
+        else:
+            raise ValueError(f"GeoDataFrame column names are not unique: {column_names}")
         
         for _name in column_names:
             if _name.isnumeric():
