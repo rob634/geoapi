@@ -124,4 +124,17 @@ class RasterRequest(BaseRequest):
             error_message = f'Stage Raster failed: invalid raster name: {self.raster_name}'
             logger.critical(error_message)
             return self.return_exception(ValueError,message=error_message)
+    
+    def validate_raster_name(self,raster_name:str):
+        
+        if raster_name and isinstance(raster_name,str):
+            logger.debug(f'Staging single raster: {raster_name} from container {self.container_name}')
+            try:
+                result = RasterHandler.valid_raster_name(raster_name)
+                return result
+            
+            except Exception as e:
+                error_message = f'Stage Raster failed: validation failure - {e}'
+                logger.critical(error_message)
+                return self.return_exception(e,message=error_message)
                 

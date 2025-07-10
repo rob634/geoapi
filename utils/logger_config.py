@@ -81,7 +81,7 @@ else:
     logger = BufferedLogger("AzureFunctionAppLogger")
     memory_handler = MemoryHandler(
         capacity=BUFFER_SIZE, 
-        flushLevel=logging.ERROR,
+        flushLevel=logging.WARNING,
         target=console_handler)
     
     logger.set_memory_handler(memory_handler)
@@ -93,3 +93,11 @@ logger.propagate = False
 log_list = ListHandler()
 log_list.setFormatter(logging.Formatter("%(asctime)s %(levelname)s: %(message)s"))
 logger.addHandler(log_list)
+
+#################
+class GeospatialLogger(BufferedLogger):
+    def log_etl_stage(self, stage: str, file_path: str, duration: float, status: str):
+        self.info(f"ETL_STAGE={stage} FILE={file_path} DURATION={duration}s STATUS={status}")
+        
+    def log_geometry_stats(self, feature_count: int, invalid_count: int, bounds: tuple):
+        self.info(f"GEOMETRY_STATS features={feature_count} invalid={invalid_count} bounds={bounds}")

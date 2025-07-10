@@ -1,4 +1,5 @@
 from os import cpu_count
+import uuid
 
 from rasterio import band as rasterio_band
 from rasterio import errors as rasterio_errors
@@ -26,6 +27,8 @@ class RasterHandler(StorageHandler):
         cloud_optimize: bool = True,
         credential=None,
         storage_account_name: str = None,
+        operation_id: str = None,
+        **kwargs,
     ):
         logger.debug(f"RasterHandler init called")
         logger.debug(f'Raster name: {raster_name}')
@@ -39,83 +42,230 @@ class RasterHandler(StorageHandler):
             credential=credential,
             account_name=storage_account_name,
         )
-        # StorageHandler init validates container name or uses default or raises error if default is not valid
-        if output_container_name:
-            self.output_container_name = output_container_name
-        else:
-            self.output_container_name = DEFAULT_HOSTING_CONTAINER
+        self.data_map = None
+        self.proc_params = {
+                    "valid_raster": False,
+                    "force_epsg_code": epsg_code_in,
+                    'epsg_code': epsg_code,
+                    "epsg_code_in": None,
+                    "error_messages": list(),
+                }
         
-        if self.container_exists(container_name=self.output_container_name):
-            logger.debug(f"Output container {self.output_container_name} exists")
+        self.output_container_name = DEFAULT_HOSTING_CONTAINER
+        
+        if operation_id:
+            self.operation_id = operation_id
+            logger.debug(f"Operation ID set to {self.operation_id}")
         else:
-            logger.error(f"Output container {self.output_container_name} does not exist")
-            logger.warning(f"Using workspace container {self.workspace_container_name} as output container")
-            self.output_container_name = self.workspace_container_name
+            self.operation_id = str(uuid.uuid4())[:8]
+            logger.debug(f"No operation ID provided, generated new one: {self.operation_id}")
+            
+        logger.debug(f"Operation ID: {self.operation_id}")
+
+        #EPSG code validation
+        if epsg_code:
+            logger.debug(f"Provided EPSG code: {epsg_code}")
+            if self.is_valid_epsg_code(epsg_code=epsg_code):
+                if epsg_code != DEFAULT_EPSG_CODE:
+                    logger.warning(f"Non-default EPSG code provided: {epsg_code}")
+                else:
+                    logger.info(f"Default EPSG code provided: {epsg_code}")
+                    
+                self.epsg_code = epsg_code
+                self.proc_params['epsg_code'] = epsg_code
+            else:
+                logger.error(f"Invalid EPSG code provided: {epsg_code}")
+                logger.warning(f"Using default EPSG code: {DEFAULT_EPSG_CODE}")
+                self.epsg_code = DEFAULT_EPSG_CODE
+                self.proc_params['epsg_code'] = DEFAULT_EPSG_CODE
+        else:
+            logger.info(f"No EPSG code provided, using default: {DEFAULT_EPSG_CODE}")
+            self.epsg_code = DEFAULT_EPSG_CODE
+            self.proc_params['epsg_code'] = DEFAULT_EPSG_CODE
+        
+        self._set_containers(
+            workspace_container_name=workspace_container_name,
+            output_container_name=output_container_name
+        )
 
         if raster_name:
-            try:
-                logger.debug(f"Setting raster source to {raster_name}")
-                self.set_raster_source(raster_name=raster_name,container_name=self.workspace_container_name)
-            except Exception as e:
-                logger.error(f"Error setting raster source: {e}")
-                self.raster_source = None
+            self._raster_init(raster_name=raster_name)
+            logger.debug(f"RasterHandler initialized with raster: {raster_name}")
         else:
-            logger.warning("No raster source provided")
-            self.raster_source = None
-
-        self.epsg_code = (
-            epsg_code if self.is_valid_epsg_code(epsg_code=epsg_code) else DEFAULT_EPSG_CODE
-        )
-        self.CRS_out = CRS.from_epsg(epsg_code)
-        
-        if self.raster_source and epsg_code_in:
-            try:
-                inferred_crs_in = self.get_epsg_code(raster_name=self.raster_source, container_name=self.workspace_container_name)
-                
-            except Exception as e:
-                logger.error(f"Error getting CRS for {self.raster_source}: {e}")
-                logger.warning(f"Using input EPSG code {epsg_code_in} as CRS for {self.raster_source}")
-                inferred_crs_in = None
-                self.epsg_code_in = epsg_code_in
-                
-            if inferred_crs_in:
-                if inferred_crs_in != epsg_code_in:
-                    logger.error(f"Input EPSG code {epsg_code_in} does not match inferred CRS {inferred_crs_in}")
-                    self.epsg_code_in = None
-                else:
-                    
-                    logger.info(f"Input CRS for {self.raster_source} matches provided EPSG code {epsg_code_in}")
-                    self.epsg_code_in = epsg_code_in
-                    
-        elif epsg_code_in:
-            self.epsg_code_in = epsg_code_in
-            
-        else:
-            self.epsg_code_in = None
-                
-                
-        self.cloud_optimize = cloud_optimize
+            logger.warning(f"No raster name provided, RasterHandler initialized without raster")
+            self.proc_params['valid_raster'] = False
+            self.data_map = None
 
         logger.info(f"RasterHandler initialized")
 
-    def set_raster_source(self, raster_name: str, container_name: str = None):
-
-        if self.valid_raster_name(raster_name=raster_name):
-            logger.debug(
-                f"Setting raster source to {raster_name} in container {container_name}"
-            )
-            if self.blob_exists(blob_name=raster_name, container_name=container_name):
-
-                self.raster_source = raster_name
-                logger.debug(f"Raster source set to {raster_name}")
+    def _set_containers(self, workspace_container_name: str = None, output_container_name: str = None):
+        
+        logger.debug(f"Setting workspace and output containers")
+        
+        if workspace_container_name and self.container_exists(
+            container_name=workspace_container_name):
+            
+            if self.workspace_container_name != workspace_container_name:
+                logger.warning(f"Workspace container name changed from {self.workspace_container_name} to {workspace_container_name}")
             else:
-                self.raster_source = None
-                raise FileNotFoundError(
-                    f"Raster {raster_name} not found in container {container_name}"
-                )
+                logger.debug(f"Workspace container name remains the same: {self.workspace_container_name}")
+                
+            self.workspace_container_name = workspace_container_name
+
         else:
-            self.raster_source = None
-            raise ValueError(f"Invalid raster name: {raster_name}")
+            logger.debug(f"No workspace container name provided, using default: {DEFAULT_WORKSPACE_CONTAINER}")
+            self.workspace_container_name = DEFAULT_WORKSPACE_CONTAINER
+
+        # Output container validation
+        if output_container_name and self.container_exists(
+            container_name=output_container_name):
+
+            if self.output_container_name != output_container_name:
+                logger.warning(f"Output container name changed from default {self.output_container_name} to {output_container_name}")
+            else:
+                logger.debug(f"Output container name remains the same: {self.output_container_name}")
+            logger.info(f"Output container {output_container_name} exists")
+            
+            self.output_container_name = output_container_name
+            
+        else:
+            logger.error(f"Output container {output_container_name} does not exist")
+            logger.warning(f"Using workspace container {self.workspace_container_name} as output container")
+            
+            self.output_container_name = DEFAULT_HOSTING_CONTAINER
+
+
+    def _raster_init(
+        self, raster_name,
+        raster_name_out,
+        workspace_container_name=None,
+        output_container_name=None,
+        ):
+        # Validate raster and parameters
+        # self.proc_params['valid_raster'] = True is the success outcome
+        logger.debug(f"RasterHandler _raster_init called")
+        
+        name_base = raster_name.split('.')[0][:10]
+        
+        # Intermediate data mapping
+        if (
+                workspace_container_name and
+                workspace_container_name != self.workspace_container_name and
+                self.container_exists(
+                    container_name=workspace_container_name)
+            ):
+            logger.warning(f"Changing workspace container to {workspace_container_name}")
+            self.workspace_container_name = workspace_container_name
+        else:
+            logger.debug(f"Using existing workspace container: {self.workspace_container_name}")
+            workspace_container_name = self.workspace_container_name
+        
+        if (
+                output_container_name and
+                output_container_name != self.output_container_name and
+                self.container_exists(
+                    container_name=output_container_name)
+            ):
+            logger.warning(f"Changing output container to {output_container_name}")
+            self.output_container_name = output_container_name
+        else:
+            logger.debug(f"Using existing output container: {self.output_container_name}")
+            output_container_name = self.output_container_name
+        
+        self.data_map = {
+            "raster_name": {
+                'name': raster_name,
+                'container': workspace_container_name
+            },
+            "projected_raster": {
+                'name': f"{name_base}_{self.operation_id}_reproj.tif",
+                'container': workspace_container_name
+            },
+            "COG_scratch": {
+                'name': f"{name_base}_{self.operation_id}_cog_temp.tif",
+                'container': workspace_container_name
+            },
+            "COG_output": {
+                'name': raster_name_out,
+                'container': output_container_name
+            },
+        }
+        logger.debug(f"Intermediate data mapping initialized: {self.data_map}")
+        
+        if self.blob_exists(
+            blob_name=self.data_map['raster_name']['name'], 
+            container_name=self.data_map['raster_name']['container']):
+                
+            logger.debug(f"Raster {raster_name} found in workspace container {self.data_map['raster_name']['container']}")
+        
+        else:
+            error_message = f"Raster {self.data_map['raster_name']['name']} not found in workspace container {self.data_map['raster_name']['container']}"
+            logger.error(error_message)
+            
+            self.data_map['raster_name']['name'] = None
+            self.proc_params['error_messages'].append(ResourceNotFoundError(error_message))
+            self.proc_params['valid_raster'] = False
+            
+            return
+        
+        # Determine input CRS
+
+        inferred_crs_in = None
+        try:
+            logger.debug(f"Inferring CRS for {raster_name}")
+            inferred_crs_in = self.get_epsg_code(
+                raster_name=self.data_map['raster_name']['name'], 
+                container_name=self.data_map['raster_name']['container']
+            )
+            logger.debug(f"Inferred CRS for {raster_name}: EPSG:{inferred_crs_in}")
+                
+        except AttributeError as e:
+            logger.error(f"Invalid or missing CRS for {raster_name}: {e}")
+            inferred_crs_in = None
+        
+        except Exception as e:
+            logger.error(f"Error inferring CRS for {raster_name}: {e}")
+            inferred_crs_in = None
+
+        if inferred_crs_in:
+            if self.proc_params['force_epsg_code']:
+                # Log if provided CRS parameter does not match inferred CRS and ignore it
+                if inferred_crs_in != self.proc_params['force_epsg_code']:
+                    logger.error(f"Input EPSG code {self.proc_params['force_epsg_code']} does not match inferred CRS {inferred_crs_in}")
+                    logger.warning(f"Using inferred CRS {inferred_crs_in} as input EPSG code and ignorint parameter")
+                else:
+                    logger.info(f"Input CRS for {raster_name} matches provided EPSG code {self.proc_params['force_epsg_code']}")
+            else:
+                
+                logger.info(f"Input CRS for {raster_name} validated as EPSG:{inferred_crs_in}")
+            
+            self.proc_params['epsg_code_in'] = inferred_crs_in
+            self.proc_params['force_epsg_code'] = None
+            self.proc_params['valid_raster'] = True
+            
+        elif self.proc_params['force_epsg_code']:
+            # Log if provided CRS parameter is valid
+            if self.is_valid_epsg_code(epsg_code=self.proc_params['force_epsg_code']):
+                logger.warning(f"Using parameter input EPSG code {self.proc_params['force_epsg_code']} as CRS for {raster_name}")
+                
+                self.proc_params['epsg_code_in'] = self.proc_params['force_epsg_code']
+                self.proc_params['valid_raster'] = True
+                
+            else:
+                error_message = f"Could not infer CRS and invalid input EPSG code provided: {self.proc_params['force_epsg_code']}"
+                logger.critical(error_message)
+                self.proc_params['error_messages'].append(ValueError(error_message))
+                self.proc_params['valid_raster'] = False
+                
+                return
+            
+        else:
+            error_message = f"Could not infer CRS for {raster_name} and no input EPSG code provided"
+            logger.critical(error_message)
+            self.proc_params['error_messages'].append(ValueError(error_message))
+            self.proc_params['valid_raster'] = False
+            
+            return
 
     def get_epsg_code(self, raster_name, container_name: str = None) -> int:
 
@@ -152,94 +302,93 @@ class RasterHandler(StorageHandler):
             raise e
 
         if crs:
-            if crs.is_valid:  # valid CRS
+            if hasattr(crs,'is_valid') and getattr(crs,'is_valid'):  # valid CRS
                 logger.info(
                     f"Info: Valid CRS found for {raster_name}: {type(crs)} - EPSG:{crs.to_epsg()}"
                 )
+                
                 return crs.to_epsg()  # return code
+            
             else:
                 raise AttributeError(f"CRS of {raster_name} <{crs}> is invalid")
         else:
-            raise AttributeError(f"CRS of {raster_name} is invalid")
+            raise AttributeError(f"CRS of {raster_name} is missing")
 
-    def check_cog(self, container_name: str = None, raster_name: str = None):
-        logger.info(f"Info: check_cog called")
-        if not container_name:
-            container_name = self.container_name
-        if not raster_name:
-            raster_name = self.raster_source
-        logger.info(f"Info: check_cog Checking COG format for {raster_name}")
-        raster_uri = self._get_blob_sas_uri(container_name, raster_name)
-        try:
-            tiff_details = cog_validate(raster_uri, quiet=True)
-            if not tiff_details[0]:
-                logger.info(f"{raster_name} is not in COG format")
-                for error in tiff_details[1]:
-                    logger.info(f"Error: {error}")
-                for warning in tiff_details[2]:
-                    logger.info(f"Warning: {warning}")
-                return False
-            else:
-                logger.info(f"Info: check_cog {raster_name} is a valid COG")
-                return True
-        except Exception as e:
-            logger.error(f"Error: checking COG for {raster_name}: {e}")
-            return None
-        
     def reproject_geotiff(
         self,
         raster_name_in: str,
-        raster_name_out: str = None,
-        container_name: str = None,
-        output_container_name: str = None,
-        epsg_code: int = None,
+        raster_name_out: str,
+        container_name: str,
+        output_container_name: str,
+        epsg_code: int,
         epsg_code_in: int = None,
-        overwrite: bool = False,
+        overwrite: bool = True,
     ) -> str:
 
         logger.debug(f"reproject_geotiff called")
-        raster_name_out = (
-            raster_name_out
-            if self.valid_raster_name(raster_name_out)
-            else f'{raster_name_in.split(".")[0]}_reprojected.tif'
-        )
-
-        if container_name:
-            logger.debug(f"Using provided container name: {container_name}")
+        logger.debug(f"reproject_geotiff called with:")
+        logger.debug(f"  raster_name_in: {raster_name_in}")
+        logger.debug(f"  raster_name_out: {raster_name_out}")
+        logger.debug(f"  container_name: {container_name}")
+        logger.debug(f"  output_container_name: {output_container_name}")
+        logger.debug(f"  epsg_code: {epsg_code}")
+        logger.debug(f"  epsg_code_in: {epsg_code_in}")
+        
+        # Validate EPSG
+        if self.is_valid_epsg_code(epsg_code):
+            logger.debug(f"Valid EPSG code provided: {epsg_code}")
         else:
-            container_name = self.workspace_container_name
-            logger.warning(f"Using workspace container name: {self.workspace_container_name}")
+            error_message = f"Error: Invalid EPSG code provided: {epsg_code}"
+            logger.error(error_message)
             
-        if self.blob_exists(blob_name=raster_name_in, container_name=container_name):
+            raise ValueError(error_message)
+        
+        # Validate raster input
+        if self.blob_exists(
+            blob_name=raster_name_in,
+            container_name=container_name):
+            
             logger.debug(f"Raster {raster_name_in} found in container {container_name}")
         else:
-            message = f"Error: Raster {raster_name_in} not found in container {container_name}"
-            logger.error(message)
+            error_message = f"Error: Raster {raster_name_in} not found in container {container_name}"
+            logger.error(error_message)
             
-            raise FileNotFoundError(message)
+            raise ResourceNotFoundError(error_message)
         
+        # Check if output raster already exists
         if self.blob_exists(blob_name=raster_name_out, container_name=output_container_name):
+            logger.warning(f"Raster {raster_name_in} found in container {container_name}")
             if overwrite:
                 logger.warning(f"Overwriting existing raster {raster_name_out} in {output_container_name}")
-
+                try:
+                    self.delete_blob(blob_name=raster_name_out, container_name=output_container_name)
+                    logger.info(f"Existing raster {raster_name_out} deleted successfully")
+                except Exception as e:
+                    message = f"Error deleting existing raster {raster_name_out} in {output_container_name}: {e}"
+                    logger.error(message)
+                    
+                    raise e
             else:
                 message = f"Error: Raster {raster_name_out} already exists in {output_container_name}"
                 logger.error(message)
                 
                 raise ResourceExistsError(message)
-
-        if epsg_code:
-            if self.is_valid_epsg_code(epsg_code):
-                logger.debug(f"Using provided output EPSG code: {epsg_code}")
         else:
-            logger.warning(f"No output EPSG code provided - defaulting to EPSG:4326")
-            epsg_code = 4326
+            logger.debug(f"Output raster {raster_name_out} does not exist in {output_container_name}, proceeding with reprojection")
+
+        # Create CRS from EPSG code
+        try:
+            logger.debug(f"Creating CRS from EPSG code {epsg_code}")
+            CRS_out = CRS.from_epsg(epsg_code)
+            logger.debug(f"CRS created: {CRS_out}")
+        except Exception as e:
+            message = f"Error creating CRS from EPSG code {epsg_code}: {e}"
+            logger.error(message)
             
-        CRS_out = CRS.from_epsg(epsg_code)
-        
-        epsg_code_in = epsg_code_in if self.is_valid_epsg_code(epsg_code_in) else None
+            raise ValueError(message)
         
         inferred_crs_in = None
+        
         try:
             logger.debug(f"Getting CRS for {raster_name_in}")
             inferred_crs_in = self.get_epsg_code(
@@ -255,34 +404,42 @@ class RasterHandler(StorageHandler):
             logger.error(f"Error getting CRS for {raster_name_in}: {e}")
             inferred_crs_in = None
             if epsg_code_in:
-                try:
-                    CRS_in = CRS.from_epsg(epsg_code_in)
-                    logger.warning(
-                        f"Using input EPSG code {epsg_code_in} as CRS for {raster_name_in}"
-                    )
-                except:
-                    message = f"Could not determine CRS from input raster or input EPSG code: <{self.epsg_code_in}> {e}"
+                if self.is_valid_epsg_code(epsg_code_in):
+                    try:
+                        CRS_in = CRS.from_epsg(epsg_code_in)
+                        logger.warning(
+                            f"Using input EPSG code {epsg_code_in} as CRS for {raster_name_in}"
+                        )
+                    except:
+                        message = f"Could not determine CRS from input raster and provided input EPSG code is invalid: <{epsg_code_in}> {e}"
+                        logger.error(message)
+                        
+                        raise e
+                    
+                else:
+                    message = f"Could not determine CRS from input raster and invalid input EPSG code provided: {epsg_code_in}"
                     logger.error(message)
+                    
                     raise ValueError(message)
             else:
                 message = f"Error: Could not determine CRS for {raster_name_in} and no input EPSG code provided: {e}"
                 logger.error(message)
+                
                 raise ValueError(message)
             
-        if inferred_crs_in and epsg_code_in:
-            if inferred_crs_in != epsg_code_in:
-                message = f"Input EPSG code {epsg_code_in} does not match inferred CRS {inferred_crs_in} from raster {raster_name_in}"
-                logger.error(message)
-                raise ValueError(message)
-            
+        # Check if reprojection is needed
         if CRS_in == CRS_out:
-            logger.warning(f"{raster_name_in} is already in {CRS_out}")
+            logger.info(f"{raster_name_in} is already in {CRS_out}")
+            # No reprojection needed, return original raster
             return raster_name_in
 
+        # If reprojection is needed, proceed
         logger.debug(f"{raster_name_in} is in {CRS_in} - reprojecting to {CRS_out}")
 
         with rasterio_open(
-            self._get_blob_sas_uri(container_name=container_name, blob_name=raster_name_in)
+            self._get_blob_sas_uri(
+                container_name=container_name,
+                blob_name=raster_name_in)
         ) as src:
             logger.debug(f"Calculating transform for {raster_name_in}")
 
@@ -303,6 +460,7 @@ class RasterHandler(StorageHandler):
 
             except Exception as e:
                 logger.error(f"Error calculating transform for {raster_name_in}: {e}")
+                
                 raise e
 
             logger.debug(f"Reprojecting GeoTIFF {raster_name_in} to {CRS_out}")
@@ -333,65 +491,96 @@ class RasterHandler(StorageHandler):
                     f"GeoTIFF reprojected successfully in-memory: {memfile.name}"
                 )
                 try:
+                    logger.debug(
+                        f"Uploading reprojected raster {raster_name_out} to container {output_container_name}"
+                    )
                     self.upload_blob_data(
                         blob_data=memfile.read(),
                         dest_blob_name=raster_name_out,
                         container_name=output_container_name,
-                        overwrite=overwrite,
+                        overwrite=True,
                     )
-
-                    logger.info(
+                    logger.debug("Upload attempt completed, checking for success")
+                    
+                    # CRITICAL: Verify upload succeeded
+                    if self.blob_exists(
+                        blob_name=raster_name_out,
+                        container_name=container_name):
+                        
+                        logger.info(
                         f"GeoTIFF {raster_name_in} reprojected to {CRS_out} and written to container {output_container_name} as {raster_name_out}"
-                    )
-                    return raster_name_out
+                        )
+                    
+                        return raster_name_out
+                    else:
+                
+                        logger.error(f"Failed to upload reprojected raster: {raster_name_out}")
+                        
+                        raise RuntimeError(f"Failed to upload reprojected raster: {raster_name_out}")
 
                 except Exception as e:
-                    logger.error(
-                        f"Error writing output GeoTIFF {raster_name_out} to container {output_container_name}: {e}"
-                    )
+                    logger.error(f"Upload failed for reprojected raster {raster_name_out}: {e}")
+                    
                     raise e
 
     def create_rasterio_cog(
         self,
-        raster_name_in: str = None,
-        raster_name_out: str = None,
-        container_name: str = None,
-        output_container_name: str = None,
-        overwrite: bool = False,
+        raster_name_in: str,
+        raster_name_out: str,
+        container_name: str,
+        output_container_name: str,
+        overwrite: bool = True,
     ) -> str:
-        logger.info(f"create_rasterio_cog called")
         
-        if not isinstance(raster_name_out, str) or not self.valid_raster_name(raster_name_out):
-            raster_name_out = f'{raster_name_in.split(".")[0]}_cog.tif'
-            logger.debug(f"Using default raster name: {raster_name_out}")
+        logger.debug(f"create_rasterio_cog called")
 
         if self.blob_exists(
-            blob_name=raster_name_in, container_name=container_name):
-            logger.debug(f"Raster {raster_name_in} found in container {container_name}")
+            blob_name=raster_name_in,
+            container_name=container_name):
+            logger.debug(f"Source raster {raster_name_in} found in container {container_name}")
         else:
-            message = f"Error: Raster {raster_name_in} not found in container {container_name}"
-            logger.error(message)
-            
-            raise FileNotFoundError(message)
-        
+            error_msg = f"Source raster not found for COG creation: {raster_name_in} in {container_name}"
+            logger.error(error_msg)
+            raise FileNotFoundError(error_msg)
+    
+        logger.debug(f"Validated source exists: {raster_name_in}")
+
         if self.blob_exists(
-            blob_name=raster_name_out, container_name=output_container_name):
+            blob_name=raster_name_out,
+            container_name=output_container_name):
+            
             if overwrite:
                 logger.warning(f"Overwriting existing raster {raster_name_out} in {output_container_name}")
+                
+                try:
+                    self.delete_blob(
+                        blob_name=raster_name_out,
+                        container_name=output_container_name
+                    )
+                    logger.info(f"Existing raster {raster_name_out} deleted successfully")
+                    
+                except Exception as e:
+                    message = f"Error deleting existing raster {raster_name_out} in {output_container_name}: {e}"
+                    logger.error(message)
+                    
+                    raise e
             else:
                 message = f"Error: Raster {raster_name_out} already exists in {output_container_name}"
                 logger.error(message)
                 
                 raise ResourceExistsError(message)
         
-        logger.info(f"Creating COG for {raster_name_in} to {raster_name_out} in container {output_container_name}")
+        logger.info(f"Validation complete - Creating COG for {raster_name_in} in container {container_name} to {raster_name_out} in container {output_container_name}")
 
         try:
             with rasterio_open(
-                    self._get_blob_sas_uri(container_name=container_name, blob_name=raster_name_in)
+                    self._get_blob_sas_uri(
+                        container_name=container_name,
+                        blob_name=raster_name_in)
                 ) as src:
 
                 with MemoryFile() as memfile:
+                    logger.debug(f"Translating {raster_name_in} to COG format in-memory")
                     cog_details = cog_translate(
                         source=src,
                         dst_path=memfile.name,
@@ -405,7 +594,7 @@ class RasterHandler(StorageHandler):
 
                     logger.info(f"COG created successfully in-memory: {cog_details}")
                     logger.debug(
-                        f"Uploading COG {raster_name_out} to container {container_name}"
+                        f"Uploading COG {raster_name_out} to container {output_container_name}"
                     )
                     try:
                         self.upload_blob_data(
@@ -415,6 +604,9 @@ class RasterHandler(StorageHandler):
                             overwrite=overwrite,
                         )
                     except Exception as e:
+                        logger.error(
+                            f"Error uploading COG {raster_name_out} to container {output_container_name}: {e}"
+                        )
                         raise e
 
             logger.info(
@@ -438,127 +630,221 @@ class RasterHandler(StorageHandler):
         epsg_code: int = None,
         epsg_code_in: int = None,
         cloud_optimize: bool = True,
-        overwrite: bool = False,
+        overwrite: bool = True,
     ):
-        # called after validation of parameters
-        raster_name = raster_name_in
-
-        try:
-            logger.debug(f"Setting raster source to {raster_name}")
-            self.set_raster_source(raster_name=raster_name, container_name=workspace_container_name)
-        except Exception as e:
-            message = f"Error setting raster source: {e}"
-            logger.error(message)
-            raise e
-        try:
-            if raster_name_out and self.valid_raster_name(raster_name_out):
-                logger.debug(f"Using provided output raster name: {raster_name_out}")
-            else:
-                logger.warning(f"Invalid output raster name provided: {raster_name_out}")
-                logger.debug(f"Using default output raster name")
-                raster_name_out = f'{raster_name_in.split(".")[0]}_staged.tif'
-
-        except Exception as e:
-            raise e
-
-        try:
-            inferred_crs_in = self.get_epsg_code(
-                raster_name=raster_name, container_name=workspace_container_name
-            )
-        except Exception as e:
-            logger.error(f"Error getting CRS for {raster_name}: {e}")
-            inferred_crs_in = None
-            if epsg_code_in:
-                logger.warning(
-                    f"Using input EPSG code {epsg_code_in} as CRS for {raster_name}"
-                )
-            else:
-                message = f"Could not determine CRS from input raster or input EPSG code: <{self.epsg_code_in}> {e}"
-                logger.error(message)
-                raise ValueError(message)
-
-        if inferred_crs_in and inferred_crs_in == epsg_code:
-            logger.info(f"{raster_name} is already in EPSG:{epsg_code}")
+        
+        logger.debug(f"stage_raster_file called with parameters:")
+        logger.debug(f"  raster_name_in: {raster_name_in}")
+        logger.debug(f"  raster_name_out: {raster_name_out}")
+        logger.debug(f"  workspace_container_name: {workspace_container_name}")
+        logger.debug(f"  output_container_name: {output_container_name}")
+        logger.debug(f"  epsg_code: {epsg_code}")
+        logger.debug(f"  epsg_code_in: {epsg_code_in}")
+        
+        if self.data_map:
+            logger.debug(f"Intermediate data mapping initialized: {self.data_map}")
         else:
             try:
-                raster_name = self.reproject_geotiff(
-                    raster_name_in=raster_name,
-                    container_name=workspace_container_name,
-                    epsg_code=epsg_code,
-                    epsg_code_in=epsg_code_in,
-                    output_container_name=output_container_name,
-                    overwrite=overwrite,
-                )
+                logger.debug(f"Intermediate data mapping not initialized, initializing now")
+                self._raster_init(
+                    raster_name=raster_name_in,
+                    raster_name_out=raster_name_out,
+                    workspace_container_name=workspace_container_name,
+                    output_container_name=output_container_name,)
             except Exception as e:
+                logger.error(f"Error initializing intermediate data mapping: {e}")
+                
                 raise e
+        
+        if self.proc_params['error_messages']:
+            logger.error(f"Errors found in processing parameters: {self.proc_params['error_messages']}")
+            
+            raise self.proc_params['error_messages'][-1]
+        
+        if not self.proc_params['valid_raster']:
+            error_message = f"Unknown failure validating raster parameters: {self.proc_params}"
+            logger.error(error_message)
+            
+            raise ValueError(error_message)
+         
+        # called after validation of parameters
+        raster_name = raster_name_in
+ 
+        try:
+            logger.debug(f"Reprojecting {raster_name}")
+            reprojected_name = self.reproject_geotiff(
+                raster_name_in=self.data_map['raster_name']['name'],
+                raster_name_out=self.data_map['projected_raster']['name'],
+                container_name=self.data_map['raster_name']['container'],
+                output_container_name=self.data_map['projected_raster']['container'],
+                epsg_code=self.proc_params['epsg_code'],
+                epsg_code_in=self.proc_params['epsg_code_in'],
+                overwrite=overwrite
+            )
+            if reprojected_name == self.data_map['raster_name']['name']:
+                logger.info(f"Reprojection not needed, using original raster: {self.data_map['raster_name']['name']}")
+                self.data_map['projected_raster']['name'] = self.data_map['raster_name']['name']
+                self.data_map['projected_raster']['container'] = self.data_map['raster_name']['container']
+                
+            elif reprojected_name == self.data_map['projected_raster']['name']:
+                if self.blob_exists(
+                    blob_name=self.data_map['projected_raster']['name'], 
+                    container_name=self.data_map['projected_raster']['container']
+                ):
+                    
+                    logger.info(f"Reprojection successful, using new raster: {self.data_map['projected_raster']['name']}")
+                    
+                else:
+                    error_message = f"Unknown reprojection failure, expected {self.data_map['projected_raster']['name']} not found in {self.data_map['projected_raster']['container']}"
+                    logger.error(error_message)
+                    
+                    raise FileNotFoundError(error_message)
+
+            else:
+                error_message = f"Unexpected reprojection result: {reprojected_name} does not match expected names"
+                logger.error(error_message)
+                
+                raise ValueError(error_message)
+
+            
+        except Exception as e:
+            logger.error(f"Reprojection failed for {raster_name}: {e}")
+            
+            raise ValueError(f"Cannot proceed with COG creation: reprojection failed: {e}")
 
         if cloud_optimize:
             try:
-                logger.debug(f"Creating COG for {raster_name}")
-                raster_name = self.create_rasterio_cog(
-                            raster_name_in = raster_name,
-                            raster_name_out = raster_name_out,
-                            container_name = workspace_container_name,
-                            output_container_name = output_container_name,
-                            overwrite = overwrite
-
-                )
-            except Exception as e:
-                raise e
-
-        else:
-            logger.debug(f"Bypassing cloud optimization for {raster_name}")
-            try:
-                self.copy_blob(
-                    source_blob_name = raster_name,
-                    source_container_name = workspace_container_name,
-                    dest_blob_name = raster_name_out,
-                    dest_container_name = output_container_name,
-                    wait_on_status=True,
+                logger.debug(
+                    f"Creating COG from validated source: {self.data_map['projected_raster']['name']} in container {self.data_map['projected_raster']['container']}")
+                
+                logger.debug(f"Output COG will be {self.data_map['COG_scratch']['name']} in container {self.data_map['COG_scratch']['container']}")
+                
+                cog_result = self.create_rasterio_cog(
+                    raster_name_in=self.data_map['projected_raster']['name'],
+                    raster_name_out=self.data_map['COG_scratch']['name'],
+                    container_name=self.data_map['projected_raster']['container'],
+                    output_container_name=self.data_map['COG_scratch']['container'],
                     overwrite=overwrite
                 )
 
+                logger.debug(f"COG process complete: {cog_result}")
             except Exception as e:
-                logger.error(
-                    f"Failed to copy {raster_name_in} as {raster_name_out} in {output_container_name}"
-                )
+                logger.error(f"COG creation failed for {self.data_map['projected_raster']['name']}: {e}")
+                
                 raise e
+            
+            if self.blob_exists(
+                    blob_name=self.data_map['COG_scratch']['name'], 
+                    container_name=self.data_map['COG_scratch']['container']
+                ):
+                    
+                    logger.info(f"COG creation successful, using new raster: {self.data_map['COG_scratch']['name']}")
+                    
+            else:
+                error_message = f"Unknown COG failure, expected {self.data_map['COG_scratch']['name']} not found in {self.data_map['COG_scratch']['container']}"
+                logger.error(error_message)
+                
+                raise FileNotFoundError(error_message)
+            
+        else:
+            logger.debug(f"Bypassing cloud optimization for {raster_name}")
+            self.data_map['COG_scratch']['name'] = self.data_map['projected_raster']['name']
+            self.data_map['COG_scratch']['container'] = self.data_map['projected_raster']['container']
+            
+        try:
+            logger.debug(
+                f"Copying COG from scratch to output: {self.data_map['COG_scratch']['name']} to {self.data_map['COG_output']['name']}")
+            
+            self.copy_blob(
+                source_blob_name = self.data_map['COG_scratch']['name'],
+                source_container_name = self.data_map['COG_scratch']['container'],
+                dest_blob_name = self.data_map['COG_output']['name'],
+                dest_container_name = self.data_map['COG_output']['container'],
+                wait_on_status=True,
+                overwrite=overwrite
+            )
+            
+            logger.info(
+                f"Successfully copied COG {self.data_map['COG_scratch']['name']} to {self.data_map['COG_output']['name']} in container {self.data_map['COG_output']['container']}")
 
+        except Exception as e:
+            logger.error(
+                f"Failed to copy {raster_name_in} as {raster_name_out} in {output_container_name}"
+            )
+            raise e
+
+        # Final validation of output
+        logger.debug(
+            f"Validating output raster {self.data_map['COG_output']['name']} in container {output_container_name}"
+        )
         if self.blob_exists(
-            blob_name=raster_name_out, container_name=output_container_name
+            blob_name=self.data_map['COG_output']['name'], 
+            container_name=self.data_map['COG_output']['container']
         ):
             logger.info(
-                f"{raster_name_in} staged as {raster_name_out} in {output_container_name}"
+                f"{raster_name_in} staged as {raster_name_out} in {self.data_map['COG_output']['container']}"
             )
+            
             return {
-                "raster_name_in": raster_name_in,
-                "raster_name_out": raster_name_out,
-                "output_container_name": output_container_name,
+                "raster_name_in": self.data_map['raster_name']['name'],
+                "raster_name_out": self.data_map['COG_output']['name'],
+                "output_container_name": self.data_map['COG_output']['container'],
             }
+            
         else:
-            raise FileNotFoundError(
-                f"Error: {raster_name_out} not found in {output_container_name} - uknown error staging {raster_name_in}"
-            ) 
+            error_message = f"Error: {self.data_map['COG_output']['name']} not found in {self.data_map['COG_output']['container']} - unknown error staging {self.data_map['raster_name']['name']}"
+            logger.error(error_message)
+            
+            raise FileNotFoundError(error_message)
+    
         
     @staticmethod
     def valid_raster_name(raster_name: str = None) -> bool:
 
-        if not raster_name:
-            logger.error("No raster name provided")
-            return False
-
-        if not any(
-            raster_name.endswith(ext)
-            for ext in [".tif", ".tiff", ".geotiff", ".geotif"]
-        ):
-            message = f"Invalid file extension for {raster_name}"
-            logger.error(message)
-            return False
-        elif ";" in raster_name:
-            return False
+        if raster_name and isinstance(raster_name, str):
+            logger.debug(f"Validating raster name: {raster_name}")
+            
         else:
-            return True
+            raise ValueError(f"Invalid raster name: {raster_name}")
 
+        if raster_name.count(".") == 1:
+            split_name = raster_name.split(".")
+            if split_name[-1] in ["tif", "tiff", "geotiff", "geotif"]:
+                logger.debug(f"{raster_name} has valid extension")
+                name_root = split_name[0]
+            else:
+                
+                raise ValueError(f"{raster_name} has invalid extension - must be .tif, .tiff, .geotiff, or .geotif")
+            
+        elif raster_name.count(".") == 0:
+            
+            raise ValueError(f"{raster_name} has no extension - must be .tif, .tiff, .geotiff, or .geotif")
+        
+        elif raster_name.count(".") > 1:
+            
+            raise ValueError(f"{raster_name} contains invalid character: '.' ")
+
+        if len(raster_name) > MAX_RASTER_NAME_LENGTH:
+            
+            raise ValueError(f"{raster_name} exceeds maximum length of {MAX_RASTER_NAME_LENGTH} characters")
+        
+        valid_chars = set(
+            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+            )
+        invalid_chars = list()
+        
+        for char in name_root:
+            if char not in valid_chars:
+                invalid_chars.append(char)
+        
+        if invalid_chars:
+            
+            raise ValueError(f"{raster_name} contains invalid characters: {invalid_chars} - alphanumeric only")
+        
+        logger.info(f"{raster_name} is a valid raster name")
+        
+        return True
+        
     @staticmethod
     def CRS_from_epsg(epsg_code: int) -> CRS:
         try:
@@ -578,4 +864,4 @@ class RasterHandler(StorageHandler):
                 # logger.error(f'Error: Invalid EPSG code: {epsg_code}')
                 return False
         else:
-            return False
+            return False    

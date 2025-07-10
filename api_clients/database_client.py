@@ -1,4 +1,4 @@
-# Dev edits March 2025
+from azure.core.exceptions import ResourceNotFoundError
 import datetime
 from dateutil import parser
 import re
@@ -12,7 +12,23 @@ from psycopg2 import sql
 from shapely.geometry.base import BaseGeometry
 
 from authorization import VaultAuth
-from utils import *
+from utils import (
+    DATABASE_ALLOWED_CHARACTERS,
+    DATABASE_RESERVED_WORDS,
+    DatabaseClientError,
+    DEFAULT_DB_PORT,
+    DEFAULT_DB_USER,
+    DEFAULT_EPSG_CODE,
+    ENTERPRISE_GEODATABASE_DB,
+    ENTERPRISE_GEODATABASE_HOST,
+    GDB_RESERVED_NAMES,
+    GDB_RESERVED_PREFIXES,
+    GDB_RESERVED_SUFFIXES,
+    GDB_TABLE_NAME_MAX_LENGTH,
+    HOSTING_SCHEMA_NAME,
+    VAULT_NAME,
+    logger,
+)
 
 class DatabaseClient:
 
@@ -177,7 +193,7 @@ class DatabaseClient:
 
             except Exception as e:
                 logger.error(f"Unknown error querying database: {e}")
-                raise DatabaseClientError(f"Unknown error querying database: {e}")
+                raise e
 
     # Describe Table Methods
     def table_exists(self, table_name: str, schema_name: str = None) -> str:
@@ -307,7 +323,7 @@ class DatabaseClient:
                 
                 if geo_column and geo_type and column == geo_column:
                     logger.debug(f"Adding geometry column {geo_column} with type {geo_type}")
-                    column_exp.append(f"{geo_column} GEOMETRY({geo_type}, 4326)")
+                    column_exp.append(f"{geo_column} GEOMETRY({geo_type}, {DEFAULT_EPSG_CODE})")
                 else:
                     column_exp.append(
                         f"{column} {self.type_to_sql_string(dtype=column_dict[column]['data_type'],length=column_length)}"
@@ -409,7 +425,7 @@ class DatabaseClient:
         query_expression = sql.SQL(
             """
             INSERT INTO {schema}.{table} ({fields}, {geom_field})
-            VALUES ({values}, ST_GeomFromText(%s, 4326))
+            VALUES ({values}, ST_GeomFromText(%s, {epsg_code}));
         """
         ).format(
             schema=sql.Identifier(schema_name),
@@ -417,6 +433,7 @@ class DatabaseClient:
             fields=sql.SQL(", ").join(map(sql.Identifier, columns)),
             geom_field=sql.Identifier(geometry_name),
             values=sql.SQL(", ").join(sql.Placeholder() * len(values)),
+            epsg_code=sql.Literal(DEFAULT_EPSG_CODE),
         )
         return query_expression, values
 
@@ -916,27 +933,33 @@ class DatabaseClient:
         vault = VaultAuth(vault_name=vault_name, credential=credential)
 
         if not db_name:
-            try:
-                self.db_name = vault.secret_client.get_secret(SECRET_DB_NAME).value
-            except Exception as e:
-                logger.error(f"Error getting database name from vault: {e}")
-                raise e
+            self.db_name = ENTERPRISE_GEODATABASE_DB
+            logger.warning(
+                f"No database name provided, using default: {self.db_name}")
+
         if not db_host:
-            try:
-                self.db_host = vault.secret_client.get_secret(SECRET_DB_HOST).value
-            except Exception as e:
-                logger.error(f"Error getting database host from vault: {e}")
-                raise e
+            self.db_host = ENTERPRISE_GEODATABASE_HOST
+            logger.warning(
+                f"No database host provided, using default: {self.db_host}")
+
         try:
+            logger.debug(
+                f"Getting database <{db_name}> credential for user <{db_user}> from vault")
             secret_name = secret_name if secret_name else f"{db_user}-credential"
             self.db_credential = vault.secret_client.get_secret(secret_name).value
+            
         except Exception as e:
             logger.error(f"Error getting database credential from vault: {e}")
             raise e
 
-        logger.info(
-            f"Database credentials retrieved from vault: {self.db_host}, {self.db_name}, {self.db_user}"
-        )
+        if self.db_credential and isinstance(self.db_credential, str):
+            logger.info(
+                f"Database credentials retrieved from vault: {self.db_host}, {self.db_name}, {self.db_user}"
+            )
+        else:
+            raise DatabaseClientError(
+                f"Error retrieving database credential from vault: {self.db_credential}"
+            )
 
         return True
 

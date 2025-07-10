@@ -8,7 +8,7 @@ from utils import *
 
 
 class EnterpriseClient:
-#@https://ddhgeodev.worldbank.org/portal/sharing/rest/content/users/rharrison1@worldbankgroup.org/items/932d2932ecb44fe39d60d664ce3ac683/update POST
+
     CNAME_URL = f"https://{ENVIRONMENT_CNAME}.worldbank.org"
     PORTAL_URL = f"{CNAME_URL}/{DEFAULT_PORTAL_CONTEXT_NAME}"
     PORTAL_ID = '0123456789ABCDEF'
@@ -247,7 +247,8 @@ class EnterpriseClient:
         job_url:str=None,
         
         wait_time:int=5):
-        #RasterAnalysisTools
+        
+        response_json = dict()
         if all([server_name, folder_name, 
                 gp_service_name, task_name,job_id]):
             
@@ -259,7 +260,7 @@ class EnterpriseClient:
 
         waiting = True
         while waiting:
-            logger.debug(f"Checking {task_name} job status: {job_id}")
+            logger.debug(f"Checking status of {task_name} job {job_id}")
 
             try:
                 response_json = self.rest_api_call(url=job_url, method="GET")
@@ -291,6 +292,8 @@ class EnterpriseClient:
                 )
 
             else:
+                if 'jobStatus' in response_json:
+                    logger.debug(f"Job status of {task_name} job {job_id}: {response_json['jobStatus']}")
                 time.sleep(wait_time)
             
     def datastore_path_from_id(self, datastore_id: str):

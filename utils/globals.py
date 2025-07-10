@@ -1,4 +1,4 @@
-
+MAX_RASTER_NAME_LENGTH = 100
 # Vector Data
 
 VALID_GEOMETRY_TYPES = ['Polygon', 'LineString', 'Point', 'MultiPolygon', 'MultiLineString', 'MultiPoint']
@@ -67,7 +67,9 @@ GDB_RESERVED_SUFFIXES = ['_a', '_ana', '_bnd', '_cat', '_csl', '_d', '_evw', '_h
 GDB_TABLE_NAME_MAX_LENGTH = 30
 
 
-# Logging
+# Idempotent Processing
+REQUESTS_TABLE_NAME = "processing_requests"
+OPERATIONS_TABLE_NAME = "processing_operations"
 LOG_TABLE_NAME = "proc_logs"
 LOG_SCHEMA_NAME = "app"
 LOG_COLUMNS = [

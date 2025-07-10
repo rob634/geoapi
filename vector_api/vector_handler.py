@@ -500,7 +500,7 @@ class VectorHandler:
         logger.debug(f"Updating GeoDataFrame CRS to EPSG:{epsg_code}")
         if not gdf.crs:
             logger.warning("GeoDataFrame does not have a CRS set")
-            logger.debug("Setting GeoDataFrame CRS to EPSG:4326")
+            logger.debug(f"Setting GeoDataFrame CRS to EPSG:{DEFAULT_EPSG_CODE}")
             gdf = gdf.set_crs(f"EPSG:{epsg_code}")
             
         if gdf.crs.to_string() == f"EPSG:{epsg_code}":

@@ -180,6 +180,7 @@ class StorageHandler:
                     elif (hasattr(self, 'workspace_container_name') 
                           and isinstance(getattr(self,'workspace_container_name'),str)):
                         logger.debug(f"Using instance workspace_container_name {container_name}")
+                        
                         container_name = getattr(self,'workspace_container_name')
 
                     else:
@@ -235,7 +236,7 @@ class StorageHandler:
                 f"Blob name must be a string, got {type(blob_name)}")
         
         try:
-            container_client = self.blob_service_client.get_container_client(
+            container_client = self.blob_service_client.get_container_client(container=
                 container_name)
             logger.debug(f"Container client for {container_name} created")
             blob_client = container_client.get_blob_client(blob=blob_name)
@@ -386,7 +387,32 @@ class StorageHandler:
         else:
 
             return copy_properties
+        
+    @check_container
+    def delete_blob(self, blob_name: str, container_name: str = None) -> bool:
 
+        if not isinstance(blob_name, str):
+            raise ValueError(f"Blob name must be a string, got {type(blob_name)}")
+        
+        try:
+            if self.blob_exists(blob_name=blob_name, container_name=container_name):
+                
+                blob_client = self.blob_service_client.get_blob_client(
+                    container=container_name, 
+                    blob=blob_name)
+                
+                blob_client.delete_blob()
+                logger.info(f"Successfully deleted blob {blob_name} from container {container_name}")
+                return True
+            else:
+                logger.debug(f"Blob {blob_name} does not exist in container {container_name}, nothing to delete")
+                return False
+                
+        except Exception as e:
+            error_message = f"Error deleting blob {blob_name} from container {container_name}: {e}"
+            logger.error(error_message)
+            raise e
+    
     @check_container
     def upload_blob_data(
         self,

@@ -292,7 +292,10 @@ class VectorLoader:
             
             raise ValueError(f"GPKG requires layer name to be provided")
         
-        if self.storage.blob_exists(blob_name=vector_file_name, container_name=self.storage.workspace_container_name):
+        if self.storage.blob_exists(
+            blob_name=vector_file_name, 
+            container_name=self.storage.workspace_container_name):
+            
             logger.info(f"File {vector_file_name} found in container {self.storage.workspace_container_name}")
         else:
             error_message = f"File {vector_file_name} not found in container {self.storage.workspace_container_name}"
@@ -640,7 +643,26 @@ class VectorLoader:
     @check_storage
     def geojson_to_gdf(self, vector_file_name: str):
         
-        if self.storage.blob_exists(blob_name=vector_file_name, container_name=self.storage.workspace_container_name):
+        if isinstance(vector_file_name,str):
+            if "." in vector_file_name and vector_file_name.split(".")[-1] in ["geojson", "json"]:
+                logger.info(f"Valid geojson file name: {vector_file_name}")
+                
+            else:
+                error_message = f"Invalid geojson file name: {vector_file_name}"
+                logger.error(error_message)
+                
+                raise ValueError(error_message)
+            
+        else:
+            error_message = f"Invalid geojson file name: {vector_file_name}"
+            logger.error(error_message)
+            
+            raise ValueError(error_message)
+        
+        if self.storage.blob_exists(
+            blob_name=vector_file_name, 
+            container_name=self.storage.workspace_container_name):
+
             logger.info(f"File {vector_file_name} found in container")
         else:
             error_message = f"File {vector_file_name} not found in container {self.storage.workspace_container_name}"
@@ -648,7 +670,9 @@ class VectorLoader:
             raise FileNotFoundError(error_message)
         
         try:
-            json_uri = self.storage._get_blob_sas_uri(blob_name=vector_file_name)
+            json_uri = self.storage._get_blob_sas_uri(
+                blob_name=vector_file_name,
+                container_name=self.storage.workspace_container_name)
             logger.debug(f"Reading geojson file {vector_file_name} from blob storage")
             gdf = gpd_read_file(json_uri)
             logger.info(f"GeoDataFrame created from geojson file {vector_file_name} with {len(gdf)} rows")
@@ -994,7 +1018,7 @@ class VectorLoader:
         elif instance.file_extension in ["kmz"]:
             params = {'kmz_name': file_name, 'kml_name': 'kml'}
             instance.loader = instance.file_extension
-        # KML
+        # KML, GeoJSON, JSON
         elif instance.file_extension in ["kml","json","geojson"]:
             params = {'vector_file_name': file_name}
             instance.loader = instance.file_extension

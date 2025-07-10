@@ -10,6 +10,7 @@ from utils import (
     DEFAULT_CLOUDSTORE_PATH,
     EnterpriseClientError,
     DEFAULT_CLOUDSTORE_ID,
+    DEFAULT_EPSG_CODE
 )
 
 # time series in mosaic dataset
@@ -326,7 +327,7 @@ class ImageServer(EnterpriseClient):
                 {"itemId": item_id},
             "context": 
                 {
-                    "outSR": {"wkid": 4326},
+                    "outSR": {"wkid": DEFAULT_EPSG_CODE},
                     "buildFootprints": False,
                     "buildOverview": True,
                 },
@@ -522,8 +523,8 @@ class ImageServer(EnterpriseClient):
             "xmax": -61.611327723113476,
             "ymax": 17.21229954797059,
             "spatialReference": {
-            "wkid": 4326,
-            "latestWkid": 4326
+            "wkid": DEFAULT_EPSG_CODE,
+            "latestWkid": DEFAULT_EPSG_CODE
             }
         }
         server_folder = server_folder if server_folder else self.server_folder

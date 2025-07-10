@@ -4,6 +4,7 @@ ENV = "dev"
 ENVIRONMENT_CNAME = f"ddhgeo{ENV}"
 STORAGE_ACCOUNT_NAME = f"itsesgddatahub{ENV}strg"
 VAULT_NAME = f"itses-gddatahub-{ENV}-keys"
+TASK_QUEUE_NAME = f"itses-gddatahub-{ENV}-task-queue"
 ENTERPRISE_GEODATABASE_HOST = f"itses-gddatahub-pgsqlsvr-{ENV}.postgres.database.azure.com"
 
 DEFAULT_DATASTORE_ID = "7e67835493214af4b9d988617952bc4d"
