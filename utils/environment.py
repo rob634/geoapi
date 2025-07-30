@@ -1,24 +1,24 @@
 
 ENV = "dev"
 
-ENVIRONMENT_CNAME = f"ddhgeo{ENV}"
-STORAGE_ACCOUNT_NAME = f"itsesgddatahub{ENV}strg"
-VAULT_NAME = f"itses-gddatahub-{ENV}-keys"
-TASK_QUEUE_NAME = f"itses-gddatahub-{ENV}-task-queue"
-ENTERPRISE_GEODATABASE_HOST = f"itses-gddatahub-pgsqlsvr-{ENV}.postgres.database.azure.com"
+ENVIRONMENT_CNAME = f"geo{ENV}"
+STORAGE_ACCOUNT_NAME = f"host{ENV}strg"
+VAULT_NAME = f"host-{ENV}-keys"
+TASK_QUEUE_NAME = f"host-{ENV}-task-queue"
+ENTERPRISE_GEODATABASE_HOST = f"host-{ENV}.postgres.database.azure.com"
 
-DEFAULT_DATASTORE_ID = "7e67835493214af4b9d988617952bc4d"
-DEFAULT_DATASTORE_NAME = "azpostgres_ds_v11m9zioluti4iyx"
-DEFAULT_CLOUDSTORE_PATH = "hosted_geotiffs_ds_f855xlgsi2hpszti"
-DEFAULT_CLOUDSTORE_ID = "d1555edf299d43fea067bcde5db1f8ac"
+DEFAULT_DATASTORE_ID = "7e67835493214af4b9d9886"
+DEFAULT_DATASTORE_NAME = "azpostgres_ds_v11m9ziol"
+DEFAULT_CLOUDSTORE_PATH = "hosted_geotiffs_ds_f855
+DEFAULT_CLOUDSTORE_ID = "d1555edf299d43fea067bcde5dc"
 
 
 # Application Constants
-ENTERPRISE_GEODATABASE_DB = "ddhgeodb"
+ENTERPRISE_GEODATABASE_DB = "geodb"
 HOSTING_SCHEMA_NAME = "sde"
 
 DEFAULT_PORTAL_CONTEXT_NAME = "portal"
-DEFAULT_PORTAL_ADMIN_USER = "ddhgeo"
+DEFAULT_PORTAL_ADMIN_USER = "geo"
 
 DEFAULT_VECTOR_CONTEXT_NAME = "hosting"
 DEFAULT_DATASTORE_SERVER_FOLDER = "hosted_vector"
