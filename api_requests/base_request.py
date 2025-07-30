@@ -21,7 +21,7 @@ class OperationStatus(Enum):
     FAILED = "failed"
     EXPIRED = "expired"
 
-class IdempotentBaseRequest:
+class BaseRequest:
     """Enhanced BaseRequest with comprehensive idempotent operation tracking"""
     
     def __init__(self, req: func.HttpRequest, use_json: bool = True):
@@ -173,7 +173,10 @@ class IdempotentBaseRequest:
         try:
             # Execute the operation
             logger.info(f"Executing new {operation_type} operation: {self.operation_id}")
-            self._update_operation_status(self.operation_id, OperationStatus.RUNNING)
+            status_updated = self._update_operation_status(self.operation_id, OperationStatus.RUNNING)
+            if not status_updated:
+                logger.error(f"Idempotency error - Failed to update operation {self.operation_id} to running status")
+
             
             result = operation_func()
             
@@ -181,8 +184,10 @@ class IdempotentBaseRequest:
             result_data = self._extract_result_data(result)
             
             # Mark operation as completed
-            self._complete_operation(self.operation_id, OperationStatus.COMPLETED, result_data)
-            
+            _completed = self._complete_operation(self.operation_id, OperationStatus.COMPLETED, result_data)
+            if not _completed:
+                logger.error(f"Idempotency error - failed to complete operation {self.operation_id}")
+
             return result
             
         except Exception as e:
@@ -192,7 +197,9 @@ class IdempotentBaseRequest:
                 "error_type": type(e).__name__,
                 "timestamp": datetime.utcnow().isoformat()
             }
-            self._complete_operation(self.operation_id, OperationStatus.FAILED, error_details)
+            _completed = self._complete_operation(self.operation_id, OperationStatus.FAILED, error_details)
+            if not _completed:
+                logger.error(f"Idempotency error - failed to complete operation {self.operation_id}")
             raise
 
     def _generate_request_id(self, operation_type: str, parameters: Dict[str, Any]) -> str:
@@ -319,7 +326,7 @@ class IdempotentBaseRequest:
                         INSERT INTO {schema_name}.{table_name} 
                             (request_id, operation_type, parameters, operation_status, 
                              queued_at, expires_at)
-                        VALUES (%s, %s, %s, %s, CURRENT_TIMESTAMP, %s)
+                        VALUES (%s, %s, %s::jsonb, %s, CURRENT_TIMESTAMP, %s)
                         RETURNING operation_id
                     """).format(
                         schema_name=sql.Identifier(schema_name),
@@ -332,7 +339,9 @@ class IdempotentBaseRequest:
                     conn.commit()
                     logger.info(f"Started new operation: {operation_id}")
                     return str(operation_id)
-                    
+        except (TypeError, ValueError) as e:
+            logger.error(f"Data serialization failed: {e}")
+            raise  
         except Exception as e:
             logger.error(f"Failed to start operation: {e}")
             raise
@@ -371,8 +380,10 @@ class IdempotentBaseRequest:
         try:
             self.log_db.query(query, [status.value, operation_id])
             logger.debug(f"Updated operation {operation_id} status to {status.value}")
+            return True
         except Exception as e:
-            logger.error(f"Failed to update operation status: {e}")
+            logger.error(f"Idempotency error - Failed to update operation status: {e}")
+            return False
 
     def _complete_operation(self, operation_id: str, status: OperationStatus, result_data: Dict):
         """Mark operation as completed with result data"""
@@ -380,25 +391,46 @@ class IdempotentBaseRequest:
         table_name = OPERATIONS_TABLE_NAME
         
         try:
-            self.log_db.query(sql.SQL(
-                """
-                UPDATE {schema_name}.{table_name} 
-                SET operation_status = %s, 
-                    completed_at = CURRENT_TIMESTAMP,
-                    result = CASE WHEN %s != 'failed' THEN %s::jsonb ELSE NULL END,
-                    error_details = CASE WHEN %s = 'failed' THEN %s::jsonb ELSE NULL END
-                WHERE operation_id = %s
+            if status == OperationStatus.FAILED:
+                # For failed operations, store error in error_details
+                self.log_db.query(sql.SQL("""
+                    UPDATE {schema_name}.{table_name} 
+                    SET operation_status = %s, 
+                        completed_at = CURRENT_TIMESTAMP,
+                        error_details = %s::jsonb
+                    WHERE operation_id = %s
                 """).format(
-                schema_name=sql.Identifier(schema_name),
-                table_name=sql.Identifier(table_name)
-            ),
-            [status.value, json.dumps(result_data), status.value, 
-             json.dumps(result_data) if status == OperationStatus.FAILED else None, 
-             operation_id]
-            )
+                    schema_name=sql.Identifier(schema_name),
+                    table_name=sql.Identifier(table_name)
+                ),
+                [status.value, json.dumps(result_data), operation_id]
+                )
+            else:
+                # For successful operations, store in result
+                self.log_db.query(sql.SQL("""
+                    UPDATE {schema_name}.{table_name} 
+                    SET operation_status = %s, 
+                        completed_at = CURRENT_TIMESTAMP,
+                        result = %s::jsonb
+                    WHERE operation_id = %s
+                """).format(
+                    schema_name=sql.Identifier(schema_name),
+                    table_name=sql.Identifier(table_name)
+                ),
+                [status.value, json.dumps(result_data), operation_id]
+                )
+                
             logger.info(f"Completed operation {operation_id} with status {status.value}")
+            
+            return True
+            
+        except (TypeError, ValueError) as e:
+            logger.error(f"Data serialization failed: {e}")
+            return False
+
         except Exception as e:
             logger.error(f"Failed to complete operation: {e}")
+            return False
 
     def _increment_retry_count(self, operation_id: str):
         """Increment retry count for failed operation"""
@@ -558,7 +590,7 @@ class IdempotentBaseRequest:
 
 
 # Maintain backward compatibility
-BaseRequest = IdempotentBaseRequest
+#BaseRequest = IdempotentBaseRequest
 
 class OldBaseRequest:
     def __init__(self, req: func.HttpRequest, use_json: bool = True):
