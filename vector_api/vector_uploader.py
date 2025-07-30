@@ -225,7 +225,7 @@ class EnterprisePostGIS(DatabaseClient):
                     logger.info(f"Table {table_name} deleted successfully")
                 except Exception as e:
                     logger.error(f"Error deleting table {table_name}: {e}")
-                    raise e
+                    raise
             elif if_exists == "fail":
                 logger.error(f"Table {table_name} already exists")
                 raise ValueError(f"Table {table_name} already exists")
@@ -239,7 +239,7 @@ class EnterprisePostGIS(DatabaseClient):
             logger.info(f"Got columns")
         except Exception as e:
             logger.error(f"Error getting columns: {e}")
-            raise e
+            raise
 
         logger.debug("Creating table query")
 
@@ -258,7 +258,7 @@ class EnterprisePostGIS(DatabaseClient):
         except Exception as e:
             logger.error(f"Error creating table {table_name}: {e}")
             logger.error(f"invalid query: {create_table_query}")
-            raise e
+            raise
         
         gist_name = f"{table_name}_gist"
         create_gist_query = sql.SQL(
@@ -277,7 +277,7 @@ class EnterprisePostGIS(DatabaseClient):
             logger.info(f"Geometry index created successfully for table {table_name}")
         except Exception as e:
             logger.error(f"Error creating geometry index for table {table_name}: {e}")
-            raise e
+            raise
             
         uidx_name = f"{table_name}_idx"
         create_oid_index_query = sql.SQL(
@@ -296,7 +296,7 @@ class EnterprisePostGIS(DatabaseClient):
             logger.info(f"ObjectID created successfully for table {table_name}")
         except Exception as e:
             logger.error(f"Error creating ObjectID index for table {table_name}: {e}")
-            raise e
+            raise
         
         if timestamp_uidx_name:
             tidx_name = f"{timestamp_uidx_name}_tidx"
@@ -348,7 +348,7 @@ class EnterprisePostGIS(DatabaseClient):
             batch_length = len(the_matrix)
         except Exception as e:
             logger.error(f"Error converting GeoDataFrame to matrix: {e}")
-            raise e
+            raise
         
         if current_proc and batch_name:
             logger.debug(f"Process {current_proc} initiated - inserting data into table {table_name} batch #{batch_name} with {batch_length} rows")
@@ -362,7 +362,7 @@ class EnterprisePostGIS(DatabaseClient):
                 geometry_name=geometry_name)
         except Exception as e:
             logger.error(f"Error building insert statement: {e}")
-            raise e
+            raise
         
         try:
             logger.debug(f"Inserting {batch_length} rows into {schema_name}.{table_name}")
@@ -373,7 +373,7 @@ class EnterprisePostGIS(DatabaseClient):
                 raise VectorHandlerError(f"Unknown error inserting data into table {table_name}")
         except Exception as e:
             logger.error(f"Error inserting data into table: {e}")
-            raise e
+            raise
         
     @valid_geometry
     def insert_whole_gdf(
@@ -410,7 +410,7 @@ class EnterprisePostGIS(DatabaseClient):
             batches = list(zip(range(1, batch_count+1), chunks))
         except Exception as e:
             logger.error(f"Error splitting GeoDataFrame into batches: {e}")
-            raise e
+            raise
         
         logger.info(f"Inserting data from GeoDataFrame with {gdf_length} rows into {table_name} using {cpu_count} processes in {batch_count} batches of {batch_size} rows each")
         
@@ -432,7 +432,7 @@ class EnterprisePostGIS(DatabaseClient):
             
             except Exception as e:
                 logger.error(f"Error inserting data into table with multiprocessing: {e}")
-                raise e
+                raise
                             
             logger.info(f"{batch_count} batches inserted into {table_name} using multiprocessing")
             
@@ -502,7 +502,7 @@ class EnterprisePostGIS(DatabaseClient):
                     logger.info("instance_to_table: GeoDataFrame is valid for PostGIS upload")
                 except Exception as e:
                     logger.error(f"instance_to_table: GeoDataFrame is not valid for PostGIS upload: {e}")
-                    raise e
+                    raise
         else:
             error_message = "instance_to_table: GeoDataFrame instance is missing"
             logger.error(error_message)
@@ -517,7 +517,7 @@ class EnterprisePostGIS(DatabaseClient):
             except Exception as e:
                 error_message = f"instance_to_table: Error getting geometry name from GeoDataFrame: {e}"
                 logger.error(error_message)
-                raise e
+                raise
         
         if not batch_size:
             # method to determine batch size
@@ -530,7 +530,7 @@ class EnterprisePostGIS(DatabaseClient):
         except Exception as e:
             error_message = f"instance_to_table: VectorHandler could not connect to database: {e}"
             logger.critical(error_message)
-            raise e
+            raise
 
         # Create table
         try:
@@ -547,7 +547,7 @@ class EnterprisePostGIS(DatabaseClient):
             logger.info(f"Table {table_name} created successfully")
         except Exception as e:
             logger.error(f"Error creating table:{e}")
-            raise e
+            raise
 
         # Insert data
         try:
@@ -565,7 +565,7 @@ class EnterprisePostGIS(DatabaseClient):
             logger.info(f"Instance GDF data inserted into {table_name}") 
         except Exception as e:
             logger.error(f"instance_to_table: Error inserting data into table: {e}")
-            raise e
+            raise
         
         return True
 
@@ -598,7 +598,7 @@ class EnterprisePostGIS(DatabaseClient):
                 instance.valid_gdf = True
             except Exception as e:
                 logger.error(f"GeoDataFrame is not valid: {e}")
-                raise e
+                raise
         elif isinstance(gdf, VectorHandler):
             if getattr(gdf,'valid_gdf'):
                 instance.gdf = gdf.gdf.copy()

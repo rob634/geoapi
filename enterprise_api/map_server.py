@@ -77,7 +77,7 @@ class MapServer(EnterpriseClient):
             r = self.json_request(url, data=params, method="POST")
         except Exception as e:
             logger.error(f"Error getting layers and datasets: {e}")
-            raise e
+            raise
 
         if "layerAndDatasets" in r.keys():
             logger.info(
@@ -119,7 +119,7 @@ class MapServer(EnterpriseClient):
             r = self.list_datastore_layers(datastore_id=datastore_id)
         except Exception as e:
             logger.error(e)
-            raise e
+            raise
 
         for l in r:
             if layer_title and l["layer"]["title"] == layer_title:
@@ -173,7 +173,7 @@ class MapServer(EnterpriseClient):
             r = self.json_request(url, data=data, method="POST")
         except Exception as e:
             logger.error(f"Error synchronizing layers: {e}")
-            raise e
+            raise
 
         if 'success' in r:
             logger.debug(f'Synchronization success: {r["success"]}')
@@ -205,7 +205,7 @@ class MapServer(EnterpriseClient):
             r = self.json_request(url, method="GET")
         except Exception as e:
             logger.error(f"Error checking datastore status: {e}")
-            raise e
+            raise
 
         if "status" in r.keys():
             logger.info(f'Datastore status: {r["status"]}')
@@ -241,7 +241,7 @@ class MapServer(EnterpriseClient):
             )
         except Exception as e:
             logger.error(f"Error setting sharing: {e}")
-            raise e
+            raise
         logger.info("Sharing set to public")
 
         edit_url = f"{self.CNAME_URL}/{context_name}/admin/services/{server_folder}/{service_name}.MapServer/edit"
@@ -258,7 +258,7 @@ class MapServer(EnterpriseClient):
                 raise EnterpriseClientError(f"Invalid service JSON: {service_json}")
         except Exception as e:
             logger.error(f"Error getting service JSON: {e}")
-            raise e
+            raise
 
         extensions = [
             i for i in service_json["extensions"] if i["typeName"] != "WFSServer"
@@ -283,7 +283,7 @@ class MapServer(EnterpriseClient):
 
         except Exception as e:
             logger.error(f"Error enabling WFS using POST: {e}")
-            raise e
+            raise
 
         logger.debug(f"WFS POST succesfull: {response}")
 
@@ -309,7 +309,7 @@ class MapServer(EnterpriseClient):
 
             except Exception as e:
                 logger.error(f"Error enabling WFS using POST: {e}")
-                raise e
+                raise
 
             logger.debug(f'Status: {response["status"]}')
 

@@ -95,7 +95,7 @@ class VectorHandler:
             except Exception as e:
                 error_message = f"Error renaming geometry column to {geom_name} {e}"
                 logger.critical(error_message)
-                raise e
+                raise
         else:
             logger.info("Geometry column name is valid")
             
@@ -297,7 +297,7 @@ class VectorHandler:
                 logger.info(f"Geometry type found: {to_geometry_type}")
             except Exception as e:
                 logger.error("Error determining geometry type")
-                raise e
+                raise
         
         geoms = set(gdf.geometry.type)
         
@@ -319,7 +319,7 @@ class VectorHandler:
 
             except Exception as e:
                 logger.error(f"Error converting geometry types to {to_geometry_type}")
-                raise e
+                raise
 
             logger.info(f"Geometry type set to {to_geometry_type}")
 
@@ -404,7 +404,7 @@ class VectorHandler:
                 logger.info("Z values removed from geometry column")
             except Exception as e:
                 logger.error("Error removing z values from geometry column")
-                raise e
+                raise
         else:
             logger.info("Geometry column does not contain z values")
 
@@ -515,7 +515,7 @@ class VectorHandler:
 
             except Exception as e:
                 logger.error(f"Error reprojecting GeoDataFrame to EPSG:{epsg_code}")
-                raise e
+                raise
 
         return gdf
 
@@ -553,7 +553,7 @@ class VectorHandler:
             logger.info("Geometry name validation completed")
         except Exception as e:
             logger.error("Error validating geometry name")
-            raise e
+            raise
         
         try:
             logger.debug("Checking reserved words in column names")
@@ -561,7 +561,7 @@ class VectorHandler:
             logger.info("Reserved words validation completed")
         except Exception as e:
             logger.error("Error validating reserved words in column names")
-            raise e
+            raise
 
         try:
             logger.debug("Checking lowercase column names")
@@ -569,7 +569,7 @@ class VectorHandler:
             logger.info("Lowercase validation completed")
         except Exception as e:
             logger.error("Error validating lowercase column names")
-            raise e
+            raise
         
         # Column types
         try:
@@ -578,7 +578,7 @@ class VectorHandler:
             logger.info("Column data type validation completed")
         except Exception as e:
             logger.error("Error validating column data types")
-            raise e
+            raise
         
         # Geometry
         try:
@@ -587,28 +587,28 @@ class VectorHandler:
             logger.info("Invalid geometry validation completed")
         except Exception as e:
             logger.error(f"Error removing null geometries: {e}")
-            raise e
+            raise
         try:
             logger.debug("Determining geometry type for GeoDataFrame")
             geometry_type = self.uniform_geometry_type(gdf=gdf)
             logger.info(f"Geometry type found: {geometry_type}")
         except Exception as e:
             logger.error(f"Error determining geometry type: {e}")
-            raise e
+            raise
         try:
             logger.debug("Validating uniform geometry type")
             gdf = self.set_uniform_geometry_type(gdf=gdf)
             logger.info(f"Geometry type set to {geometry_type}")
         except Exception as e:
             logger.error(f"Error converting geometry types: {e}")
-            raise e
+            raise
         try:
             logger.debug("Removing z values from geometry column")
             gdf = self.remove_gdf_z_values(gdf=gdf, geometry_name=geometry_name)
             logger.info("Z value validation completed")
         except Exception as e:
             logger.error(f"Error removing z values from geometry column: {e}")
-            raise e
+            raise
 
         # CRS
         try:
@@ -617,7 +617,7 @@ class VectorHandler:
             logger.info(f"GeoDataFrame CRS updated to EPSG:{epsg_code}")
         except Exception as e:
             logger.error(f"Error updating CRS to EPSG:{epsg_code} {e}")
-            raise e
+            raise
 
         logger.info(f"GeoDataFrame prepared for database upload")
         
@@ -666,6 +666,6 @@ class VectorHandler:
                 )
             except Exception as e:
                 logger.error(f"Error validating GeoDataFrame: {e}")
-                raise e
+                raise
             
         return instance

@@ -289,17 +289,17 @@ class RasterHandler(StorageHandler):
                     logger.debug(f"CRS found for {raster_name}: {crs}")
                 except rasterio_errors.RasterioError as e:
                     logger.error(f"rasterio error reading CRS from {raster_name}: {e}") 
-                    raise e
+                    raise
                 except Exception as e:
                     logger.error(f"Error reading CRS from {raster_name}: {e}")
-                    raise e
+                    raise
         
         except rasterio_errors.RasterioError as e:    
             logger.error(f"rasterio error reading {raster_name} into memory: {e}")
-            raise e
+            raise
         except Exception as e:
             logger.error(f"Error reading reading {raster_name} into memory: {e}")
-            raise e
+            raise
 
         if crs:
             if hasattr(crs,'is_valid') and getattr(crs,'is_valid'):  # valid CRS
@@ -367,7 +367,7 @@ class RasterHandler(StorageHandler):
                     message = f"Error deleting existing raster {raster_name_out} in {output_container_name}: {e}"
                     logger.error(message)
                     
-                    raise e
+                    raise
             else:
                 message = f"Error: Raster {raster_name_out} already exists in {output_container_name}"
                 logger.error(message)
@@ -414,7 +414,7 @@ class RasterHandler(StorageHandler):
                         message = f"Could not determine CRS from input raster and provided input EPSG code is invalid: <{epsg_code_in}> {e}"
                         logger.error(message)
                         
-                        raise e
+                        raise
                     
                 else:
                     message = f"Could not determine CRS from input raster and invalid input EPSG code provided: {epsg_code_in}"
@@ -461,7 +461,7 @@ class RasterHandler(StorageHandler):
             except Exception as e:
                 logger.error(f"Error calculating transform for {raster_name_in}: {e}")
                 
-                raise e
+                raise
 
             logger.debug(f"Reprojecting GeoTIFF {raster_name_in} to {CRS_out}")
 
@@ -483,7 +483,7 @@ class RasterHandler(StorageHandler):
                             logger.error(
                                 f"Error reprojecting band {_band_id} of {raster_name_in}: {e}"
                             )
-                            raise e
+                            raise
 
                 memfile.seek(0)
 
@@ -521,7 +521,7 @@ class RasterHandler(StorageHandler):
                 except Exception as e:
                     logger.error(f"Upload failed for reprojected raster {raster_name_out}: {e}")
                     
-                    raise e
+                    raise
 
     def create_rasterio_cog(
         self,
@@ -563,7 +563,7 @@ class RasterHandler(StorageHandler):
                     message = f"Error deleting existing raster {raster_name_out} in {output_container_name}: {e}"
                     logger.error(message)
                     
-                    raise e
+                    raise
             else:
                 message = f"Error: Raster {raster_name_out} already exists in {output_container_name}"
                 logger.error(message)
@@ -607,7 +607,7 @@ class RasterHandler(StorageHandler):
                         logger.error(
                             f"Error uploading COG {raster_name_out} to container {output_container_name}: {e}"
                         )
-                        raise e
+                        raise
 
             logger.info(
                 f"COG {raster_name_out} written to container {output_container_name}"
@@ -619,7 +619,7 @@ class RasterHandler(StorageHandler):
             logger.error(
                 f"Error creating COG for {raster_name_out} {type(e).__name__}: {e}"
             )
-            raise e
+            raise
 
     def stage_raster_file(
         self,
@@ -654,7 +654,7 @@ class RasterHandler(StorageHandler):
             except Exception as e:
                 logger.error(f"Error initializing intermediate data mapping: {e}")
                 
-                raise e
+                raise
         
         if self.proc_params['error_messages']:
             logger.error(f"Errors found in processing parameters: {self.proc_params['error_messages']}")
@@ -731,7 +731,7 @@ class RasterHandler(StorageHandler):
             except Exception as e:
                 logger.error(f"COG creation failed for {self.data_map['projected_raster']['name']}: {e}")
                 
-                raise e
+                raise
             
             if self.blob_exists(
                     blob_name=self.data_map['COG_scratch']['name'], 
@@ -771,7 +771,7 @@ class RasterHandler(StorageHandler):
             logger.error(
                 f"Failed to copy {raster_name_in} as {raster_name_out} in {output_container_name}"
             )
-            raise e
+            raise
 
         # Final validation of output
         logger.debug(

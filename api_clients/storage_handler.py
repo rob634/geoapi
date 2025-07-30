@@ -159,7 +159,7 @@ class StorageHandler:
                                 
                             except Exception as e:
                                 logger.error(f"Error checking container {_container_name} for {_name}: {e}")
-                                raise e
+                                raise
                             
                             if _exists:
                                 logger.info(f"Storage container {_container_name} exists "+
@@ -196,7 +196,7 @@ class StorageHandler:
                     except Exception as e:
                         logger.error(f"Error checking container {container_name}: {e}")
                         
-                        raise e
+                        raise
                     
                     if _exists:
                         
@@ -254,7 +254,7 @@ class StorageHandler:
         except Exception as e:
             error_message = f"Error checking blob {blob_name} in {container_name}: {e}"
             logger.error(error_message)
-            raise e
+            raise
 
 
     def container_exists(self, container_name: str):
@@ -269,7 +269,7 @@ class StorageHandler:
             
             except Exception as e:
                 logger.error(f"Error accessing {container_name}: {e}")
-                raise e
+                raise
         else:
             raise ValueError(
                 f"Container name must be a string, got {type(container_name)}")
@@ -285,7 +285,7 @@ class StorageHandler:
             return names
         except Exception as e:
             logger.error(f"Error listing containers: {e}")
-            raise e
+            raise
 
     @check_container
     def list_container_blobs(self, container_name: str = None) -> list:
@@ -302,7 +302,7 @@ class StorageHandler:
         
         except Exception as e:
             logger.error(f"Error listing blobs in {container_name}: {e}")
-            raise e
+            raise
 
     @check_container
     def copy_blob(
@@ -349,7 +349,7 @@ class StorageHandler:
                 f"Error accessing destination container {dest_container_name}: {e}"
             )
             logger.error(message)
-            raise e
+            raise
 
         try:
             source_blob = self._get_blob_sas_uri(
@@ -359,7 +359,7 @@ class StorageHandler:
             message = f"Error generating SAS URI for {source_blob_name} in {source_container_name}"
             logger.error(message)
             
-            raise e
+            raise
         
         try:
             copy_properties = dest_blob_client.start_copy_from_url(source_blob)
@@ -367,7 +367,7 @@ class StorageHandler:
         except Exception as e:
             message = f"Error starting copy operation: {e}"
             logger.error(message)
-            raise e
+            raise
 
         if wait_on_status:
             status = self._check_copy_status(
@@ -411,7 +411,7 @@ class StorageHandler:
         except Exception as e:
             error_message = f"Error deleting blob {blob_name} from container {container_name}: {e}"
             logger.error(error_message)
-            raise e
+            raise
     
     @check_container
     def upload_blob_data(
@@ -427,7 +427,7 @@ class StorageHandler:
             logger.debug(f"Info: Validated file name: {dest_blob_name}")
         except Exception as e:
             logger.error(f"Error validating file name: {e}")
-            raise e
+            raise
 
         logger.debug(f"Info: Uploading {dest_blob_name} to {container_name}")
 
@@ -458,7 +458,7 @@ class StorageHandler:
             logger.error(
                 f"Error uploading blob {dest_blob_name} to container {container_name}: {e}"
             )
-            raise e
+            raise
 
         return dest_blob_name
 
@@ -474,7 +474,7 @@ class StorageHandler:
             logger.error(
                 f"Error creating blob client for <{blob_name}> in <{container_name}>: {e}"
             )
-            raise e
+            raise
 
         try:
             blob_data = io.BytesIO()
@@ -486,7 +486,7 @@ class StorageHandler:
         except Exception as e:
             logger.error(f"Error downloading <{blob_name}> from {container_name}: {e}")
 
-            raise e
+            raise
     
     @check_container
     def blob_to_data_object(self, blob_name: str, container_name: str = None):
@@ -500,7 +500,7 @@ class StorageHandler:
             logger.error(
                 f"Error creating blob client for <{blob_name}> in <{container_name}>: {e}"
             )
-            raise e
+            raise
 
         try:
             blob_data = blob_client.download_blob().readall()
@@ -511,7 +511,7 @@ class StorageHandler:
         except Exception as e:
             logger.error(f"Error downloading <{blob_name}> from {container_name}: {e}")
 
-            raise e
+            raise
 
     @check_container
     def blob_to_bytesio(self, blob_name: str, container_name: str = None):
@@ -525,7 +525,7 @@ class StorageHandler:
         except Exception as e:
             logger.error(f"{e}")
 
-            raise e
+            raise
 
     @check_container
     def multi_blobs_to_bytesio(
@@ -574,7 +574,7 @@ class StorageHandler:
         except Exception as e:
             error_message = f"Error initializing StorageHandler: {e}"
             logger.error(error_message)
-            raise e
+            raise
 
         if instance.blob_service_client:
 
@@ -612,7 +612,7 @@ class StorageHandler:
         except Exception as e:
             error_message = f"Error initializing AzureNamedKeyCredential: {e}" 
             logger.error(error_message)
-            raise e
+            raise
         
         try:
             instance = cls(
@@ -655,7 +655,7 @@ class StorageHandler:
                 f"Error creating blob client for {blob_name} in {container_name}: {e}"
             )
             
-            raise e
+            raise
         
         if hasattr(self,"account_key") and isinstance(getattr(self,'account_key'), str):
             ak = self.account_key
@@ -670,7 +670,7 @@ class StorageHandler:
             except Exception as e:
                 logger.error(f"Error getting user delegation key: {e}")
                 
-                raise e
+                raise
 
         try:
             sas_token = generate_blob_sas(
@@ -691,7 +691,7 @@ class StorageHandler:
         except Exception as e:
             logger.error(f"Error generating SAS token: {e}")
             
-            raise e
+            raise
         
         
 
@@ -718,7 +718,7 @@ class StorageHandler:
             copy_status = properties.copy.status
         except Exception as e:
             logger.error(f"Error checking copy status for {blob_name}: {e}")
-            raise e
+            raise
 
         logger.debug(f"Copy status for {blob_name}: {copy_status}")
 

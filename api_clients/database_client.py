@@ -94,10 +94,10 @@ class DatabaseClient:
             return conn
         except psycopg2.Error as e:
             logger.error(f"psycopg2 error connecting to database: {e}")
-            raise e
+            raise
         except Exception as e:
             logger.error(f"Unknown error connecting to database: {e}")
-            raise e
+            raise
     
     def test_connection(self):
         # Test the database connection and raise an exception if it fails
@@ -119,7 +119,7 @@ class DatabaseClient:
         except Exception as e:
             message = f"Credential errors could not connect to {self.db_host}: {e}"
             logger.error(message)
-            raise e
+            raise
 
     def query(self, query_expression: str = None, param_list: list = None):
         select = None
@@ -140,7 +140,7 @@ class DatabaseClient:
                     select = "select" in query_str
             except Exception as e:
                 logger.error(f"Error checking query_expression type: {e}")
-                raise e
+                raise
                 
         else:
             raise ValueError("Invalid query_expression format: must by str or sql.Composed")
@@ -166,7 +166,7 @@ class DatabaseClient:
 
                         except Exception as e:
                             logger.error(f"Error fetching query_expression results: {e}")
-                            raise e
+                            raise
 
                     else:
                         try:
@@ -174,7 +174,7 @@ class DatabaseClient:
                             return True
                         except Exception as e:
                             logger.error(f"Error committing query_expression: {e}")
-                            raise e
+                            raise
 
             except (
                 psycopg2.IntegrityError,
@@ -185,15 +185,15 @@ class DatabaseClient:
                 psycopg2.DatabaseError,
             ) as e:
                 logger.error(f"psycopg2 Database Error: {e}")
-                raise e
+                raise
 
             except psycopg2.Error as e:
                 logger.error(f"psycopg2 General Error: {e}")
-                raise e
+                raise
 
             except Exception as e:
                 logger.error(f"Unknown error querying database: {e}")
-                raise e
+                raise
 
     # Describe Table Methods
     def table_exists(self, table_name: str, schema_name: str = None) -> str:
@@ -217,7 +217,7 @@ class DatabaseClient:
             exists = result[0][0]
         except Exception as e:
             logger.error(f"Error checking if table exists: {e}")
-            raise e
+            raise
         if exists:
             logger.debug(f"Table {schema_name}.{table_name} exists.")
         else:
@@ -282,7 +282,7 @@ class DatabaseClient:
             logger.error(
                 f"Error getting column info for {schema_name}.{table_name}: {e}"
             )
-            raise e
+            raise
         
         if get_length:
             for column in columns:
@@ -338,12 +338,12 @@ class DatabaseClient:
             column_dict = self.column_dict_from_db_table(table_name=table_name, schema_name=schema_name,get_length=get_length)
         except Exception as e:
             logger.error(f"Error getting column list from database table: {e}")
-            raise e
+            raise
         try:
             columns = self.sql_list_from_column_dict(column_dict)
         except Exception as e:
             logger.error(f"Error building column expression: {e}")
-            raise e
+            raise
         return columns
 
     # Describe Schema Methods
@@ -360,7 +360,7 @@ class DatabaseClient:
             exists = result[0][0]
         except Exception as e:
             logger.error(f"Error checking if table exists: {e}")
-            raise e
+            raise
         if exists:
             logger.debug(f"Schema {schema_name} exists")
         else:
@@ -401,7 +401,7 @@ class DatabaseClient:
             ]
         except Exception as e:
             logger.error(f"Error listing tables: {e}")
-            raise e
+            raise
 
         if return_columns:
             tables = {
@@ -519,7 +519,7 @@ class DatabaseClient:
                 )
         except Exception as e:
             logger.error(f"Error deleting table {schema_name}.{table_name}: {e}")
-            raise e
+            raise
 
     def create_table(
         self,
@@ -548,7 +548,7 @@ class DatabaseClient:
                 )
             except Exception as e:
                 logger.error(f"Error building column expression: {e}")
-                raise e
+                raise
             
         elif isinstance(columns, list):
             if all(
@@ -580,7 +580,7 @@ class DatabaseClient:
             return True
         except Exception as e:
             logger.error(f"Database connection error: {e}")
-            raise e
+            raise
       
     # Data Type Methods
 
@@ -619,7 +619,7 @@ class DatabaseClient:
                     
                 except Exception as e:
                     logger.error(f"Error converting data type dictionary: {e}")
-                    raise e
+                    raise
             else:
                 raise ValueError(f"Invalid data type dictionary format, could not find data_type: {dtype}")
         
@@ -739,7 +739,7 @@ class DatabaseClient:
                 
             except Exception as e:
                 logger.error(f"Error converting to SQL type: {e}")
-                raise e
+                raise
 
         if not obj_type or obj_type in ["NaN", "NULL", "None", "none"]:
 
@@ -950,7 +950,7 @@ class DatabaseClient:
             
         except Exception as e:
             logger.error(f"Error getting database credential from vault: {e}")
-            raise e
+            raise
 
         if self.db_credential and isinstance(self.db_credential, str):
             logger.info(
@@ -984,7 +984,7 @@ class DatabaseClient:
             instance.test_connection()
         except Exception as e:
             logger.error(f"Error creating DatabaseClient from params: {e}")
-            raise e
+            raise
 
         return instance
 
@@ -1011,14 +1011,14 @@ class DatabaseClient:
             )
         except Exception as e:
             logger.error(f"Error creating DatabaseClient from vault: {e}")
-            raise e
+            raise
 
         if instance.db_credential:
             try:
                 instance.test_connection()
             except Exception as e:
                 logger.error(f"Error creating DatabaseClient from params: {e}")
-                raise e
+                raise
         else:
             raise ResourceNotFoundError("No database credential found in vault")
 
@@ -1032,7 +1032,7 @@ class DatabaseClient:
             reg_tables = self.gdb_registered_tables(db_name=db_name, schema_name=schema_name)
         except Exception as e:
             logger.error(f"Error getting registered tables: {e}")
-            raise e
+            raise
 
         return table_name in reg_tables
    
@@ -1042,7 +1042,7 @@ class DatabaseClient:
             reg_tables = self.gdb_registered_tables(db_name=db_name, schema_name=schema_name)
         except Exception as e:
             logger.error(f"Error getting registered tables: {e}")
-            raise e
+            raise
         
         if table_name in reg_tables:
             logger.debug(f"Unregistering table {schema_name}.{table_name}")
@@ -1066,7 +1066,7 @@ class DatabaseClient:
             
             except Exception as e:
                 logger.error(f"Error unregistering table {schema_name}.{table_name}: {e}")
-                raise e
+                raise
         else:
             logger.warning(f"Table {schema_name}.{table_name} not registered.")
             return True
@@ -1098,11 +1098,11 @@ class DatabaseClient:
 
         except psycopg2.Error as e:
             logger.error(f"psycopg2 error getting item type ID for {item_type}: {e}")
-            raise e
+            raise
 
         except Exception as e:
             logger.error(f"Error getting item type ID for {item_type}: {e}")
-            raise e
+            raise
 
     def gdb_registered_tables(self, db_name: str = None, schema_name: str = None):
         db_name = db_name if db_name else self.db_name
@@ -1112,7 +1112,7 @@ class DatabaseClient:
             fc_type_id = self.gdb_item_type_id(db_name=db_name, schema_name=schema_name)
         except Exception as e:
             logger.error(f"Error getting feature class type ID: {e}")
-            raise e
+            raise
 
         query_expression = sql.SQL(
             """
@@ -1131,5 +1131,5 @@ class DatabaseClient:
             return tables
         except Exception as e:
             logger.error(f"Error querying tables in schema {schema_name}: {e}")
-            raise e
+            raise
 

@@ -244,7 +244,7 @@ class VectorLoader:
         except Exception as e:
             error_message = f"VectorHandler.get_gpkg_layers error reading data for {vector_file_name} from container: {e}"
             logger.error(error_message)
-            raise e
+            raise
         layers = []
         with tempfile.TemporaryDirectory() as tmpdirname:
             temp_file_path = f"{tmpdirname}/temp.gpkg"
@@ -256,7 +256,7 @@ class VectorLoader:
             except Exception as e:
                 error_message = f"Error writing GeoPackage to temporary file: {e}"
                 logger.error(error_message)
-                raise e
+                raise
             try:
                 logger.debug(f"Opening GeoPackage from temporary file {temp_file_path}")
                 #with ogr.Open(temp_file_path) as gpkg_source:
@@ -269,7 +269,7 @@ class VectorLoader:
             except Exception as e:
                 error_message = f"Error writing GeoPackage to temporary file: {e}"
                 logger.error(error_message)
-                raise e
+                raise
             
         if len(layers) > 0:
             logger.debug(layers)
@@ -321,14 +321,14 @@ class VectorLoader:
                 error_message = f"VectorHandler.gpkg_to_gdf error reading data for {vector_file_name} from container: {e}"
                 logger.error(error_message)
                 
-            raise e
+            raise
             
         except Exception as e:
             
             error_message = f"VectorHandler.gpkg_to_gdf error reading data for {vector_file_name} from container: {e}"
             logger.error(error_message)
             
-            raise e
+            raise
 
 
     # CSV
@@ -383,7 +383,7 @@ class VectorLoader:
                 error_message = f"Error building GeoDataFrame from lat/lon table {lat_name}, {lon_name}: {e}"
                 logger.error(error_message)
                 
-                raise e
+                raise
             
         else:
             error_message = f"lat_name: <{lat_name}> and lon_name: <{lon_name}> not found in DataFrame columns"
@@ -405,19 +405,19 @@ class VectorLoader:
                     error_message = f"WKTReadingError reading data from DataFrame column {wkt_column}: {e}"
                     logger.error(error_message)
                     
-                    raise e
+                    raise
                 
                 except ShapelyError as e:
                     error_message = f"ShapelyError reading data from DataFrame column {wkt_column}: {e}"
                     logger.error(error_message)
                     
-                    raise e
+                    raise
                 
                 except TypeError as e:
                     error_message = f"TypeError reading data from DataFrame column {wkt_column}: {e}"
                     logger.error(error_message)
                     
-                    raise e
+                    raise
                 
                 except Exception as e:
                     error_message = f"Error building GeoDataFrame from WKT table {wkt_column}: {e}"
@@ -701,7 +701,7 @@ class VectorLoader:
             error_message = f"Error reading zip file {zip_file}: {e}"
             logger.error(error_message)
             
-            raise e 
+            raise 
 
     
     @check_storage
@@ -731,7 +731,7 @@ class VectorLoader:
                     error_message = f"Error listing zip contents from {zip_file}: {e}"
                     logger.error(error_message)
                     
-                    raise e 
+                    raise 
                          
         except Exception as e:
             error_message = f"VectorHandler.list_zip_contents error reading data for {zip_file} from container <{self.storage.workspace_container_name}>: {e}"
@@ -747,7 +747,7 @@ class VectorLoader:
             logger.info(f"Zip contents: {zip_contents}")
             
         except ValueError as e:
-            raise e
+            raise
         
         except Exception as e:
             error_message = f"VectorLoader.from_blob_file error reading data for {zip_file} from container: {e}"
@@ -935,7 +935,7 @@ class VectorLoader:
             error_message = f"File {file_name} not found in container {container_name}: {e}"
             logger.error(error_message)
             
-            raise e
+            raise
         
         except Exception as e:
             error_message = f"Error checking file existence in container: {e}"
@@ -954,7 +954,7 @@ class VectorLoader:
             error_message = f"Invalid filename or file extension: {e}"
             logger.error(error_message)
             
-            raise e
+            raise
         
         except Exception as e:
             error_message = f"Error inferring file type: {e}"
@@ -980,7 +980,7 @@ class VectorLoader:
                     error_message = f"{file_type} could not be matched with a valid vector type in {list(VECTOR_FILE_DICT.keys())}: {e}"
                     logger.error(error_message)
                     
-                    raise e
+                    raise
                 
                 except Exception as e:
                     error_message = f"VectorLoader.from_blob_file error matching file type {file_type}: {e}"
@@ -1039,12 +1039,12 @@ class VectorLoader:
             return gdf
         
         except ValueError as e:
-            raise e
+            raise
         
         except Exception as e:
             error_message = f"VectorLoader.from_blob_file error reading data for {file_name} from container: {e}"
             logger.critical(error_message)
-            raise e
+            raise
         
 
             

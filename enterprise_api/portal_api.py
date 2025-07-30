@@ -87,15 +87,15 @@ class EnterpriseClient:
                         
                     except SyntaxError as e:
                         logger.error(f"SyntaxError converting parameter {param_object} to JSON: {e}")
-                        raise e
+                        raise
                     
                     except TypeError as e:
                         logger.error(f"TypeError converting parameter {param_object} to JSON: {e}")
-                        raise e
+                        raise
                     
                     except Exception as e:
                         logger.error(f"Error converting parameter {param_object} to JSON: {e}")
-                        raise e
+                        raise
                     
         elif params:
             raise ValueError(f"Invalid parameters: {params}. Must be a dictionary or None.")
@@ -120,10 +120,10 @@ class EnterpriseClient:
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Error in HTTP Request: {e}")
-            raise e
+            raise
         except Exception as e:
             logger.error(f"Error making JSON request: {e}")
-            raise e
+            raise
         
         # Optionally return JSON
         if return_json:
@@ -136,12 +136,12 @@ class EnterpriseClient:
                 logger.error(f"Response did was not of JSON type: {e}")
                 logger.error(str(response.content))
 
-                raise e
+                raise
             except Exception as e:
                 logger.error(f"Error parsing JSON response: {e}")
                 logger.error(str(response.content))
 
-                raise e
+                raise
         else:
             
             return response
@@ -217,10 +217,10 @@ class EnterpriseClient:
 
         except requests.exceptions.RequestException as e:
             logger.error(f"Error in HTTP Request: {e}")
-            raise e
+            raise
         except Exception as e:
             logger.error(f"Error making JSON request: {e}")
-            raise e
+            raise
 
         try:
             jobj = response.json()
@@ -228,12 +228,12 @@ class EnterpriseClient:
             logger.error(f"Response did was not of JSON type: {e}")
             logger.error(str(response.content))
 
-            raise e
+            raise
         except Exception as e:
             logger.error(f"Error parsing JSON response: {e}")
             logger.error(str(response.content))
 
-            raise e
+            raise
 
         return jobj
 
@@ -266,7 +266,7 @@ class EnterpriseClient:
                 response_json = self.rest_api_call(url=job_url, method="GET")
             except Exception as e:
                 logger.error(f"Error getting cloudstore contents: {e}")
-                raise e
+                raise
 
             if "jobStatus" not in response_json:
                 raise EnterpriseClientError(
@@ -699,7 +699,7 @@ class EnterpriseClient:
             )
             logger.debug(f"Service ID: {service_id}")
         except Exception as e:
-            raise e
+            raise
 
         share_url = f"{self.PORTAL_URL}/sharing/rest/content/users/{self.portal_username}/items/{service_id}/share"
 
@@ -971,7 +971,7 @@ class EnterpriseClient:
             
             except Exception as e:
                 logger.error(f"Error getting token: {e}")
-                raise e
+                raise
             
         else:
             error_message = "No portal credential available"
@@ -1002,7 +1002,7 @@ class EnterpriseClient:
             )
         except Exception as e:
             logger.error(f"Error submitting publishing raster job: {e}")
-            raise e
+            raise
 
         # Get Job ID
         if isinstance(response_json,dict) and "jobId" in response_json:
@@ -1027,7 +1027,7 @@ class EnterpriseClient:
 
         except Exception as e:
             logger.error(f"Error checking job status: {e}")
-            raise e
+            raise
 
         if results_path:
             results_url = f"{task_url}/jobs/{job_id}/results/{results_path}"

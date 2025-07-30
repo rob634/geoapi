@@ -72,7 +72,7 @@ class ImageServer(EnterpriseClient):
             
         except Exception as e:
             logger.error(f"Error submitting {task_name} job: {e}")
-            raise e
+            raise
 
         if "value" in response_json:
             if isinstance(response_json["value"], dict):
@@ -392,7 +392,7 @@ class ImageServer(EnterpriseClient):
             )
         except Exception as e:
             logger.error(f"Error setting sharing: {e}")
-            raise e
+            raise
 
         edit_url = f"{self.CNAME_URL}/{context_name}/admin/services/{server_folder}/{service_name}.ImageServer/edit"
 
@@ -404,7 +404,7 @@ class ImageServer(EnterpriseClient):
             )
         except Exception as e:
             logger.error(f"Error getting service JSON: {e}")
-            raise e
+            raise
 
         wcs_url = f"{self.CNAME_URL}/{context_name}/services/{server_folder}/{service_name}/ImageServer/WCSServer"
 
@@ -452,7 +452,7 @@ class ImageServer(EnterpriseClient):
 
         except Exception as e:
             logger.error(f"Error enabling WCS using POST: {e}")
-            raise e
+            raise
 
         logger.debug(f"WCS POST succesfull: {response_json}")
 
@@ -470,7 +470,7 @@ class ImageServer(EnterpriseClient):
         #    self.check_job(job_url= f"{self.CNAME_URL}/{context_name}/admin/system/jobs/{job_id}")
         #except Exception as e:
         #    logger.error(f"Error checking job status: {e}")
-        #    raise e
+        #    raise
         
         executing = True
         while executing:
@@ -482,7 +482,7 @@ class ImageServer(EnterpriseClient):
 
             except Exception as e:
                 logger.error(f"Error enabling WCS using POST: {e}")
-                raise e
+                raise
 
             logger.debug(f'Status: {response["status"]}')
 
@@ -505,7 +505,7 @@ class ImageServer(EnterpriseClient):
             self.cloudstore_dict = dict((os.path.basename(i), i) for i in self.cloudstore_contents if os.path.basename(i))
         except Exception as e:
             logger.error(f"Error getting cloudstore contents: {e}")
-            raise e
+            raise
         
         return 
 
@@ -546,7 +546,7 @@ class ImageServer(EnterpriseClient):
             
         except Exception as e:
             logger.error(f"Error getting thumbnail: {e}")
-            raise e
+            raise
         
 
     @classmethod

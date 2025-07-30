@@ -1,16 +1,43 @@
 import azure.functions as func
+from datetime import datetime
 from json import dumps
 
-from api_requests import *
+from api_requests import BaseRequest, UploadRequest, StorageRequest, RasterRequest, VectorRequest, EnterpriseRequest
 from utils import logger
 
 app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
 
+
 @app.route(route='test_pulse', methods=['GET', 'POST'])
 def test_pulse(req: func.HttpRequest) -> func.HttpResponse:
-    logger.info('Azure Function recieved a test request')
-    response_body = dumps({'message' :'Pulse test successful'})
-    return func.HttpResponse(body=response_body,status_code=200)
+    logger.info('Azure Function received a test request')
+    
+    # Create a BaseRequest instance to test idempotency
+    handler = BaseRequest(req, use_json=False)
+    
+    # Test idempotent operation
+    def execute_test():
+        logger.info("Executing test pulse operation")
+        return handler.return_success(
+            message='Pulse test successful - idempotent operation executed',
+            json_out={
+                'timestamp': datetime.utcnow().isoformat(),
+                'test_data': 'Hello from idempotent test pulse'
+            }
+        )
+    
+    # Use idempotent operation wrapper
+    return handler.idempotent_operation(
+        operation_type="test_pulse",
+        operation_func=execute_test,
+        parameters={}  # Empty parameters for this test
+    )
+
+#@app.route(route='test_pulse', methods=['GET', 'POST'])
+#def test_pulse(req: func.HttpRequest) -> func.HttpResponse:
+#    logger.info('Azure Function recieved a test request')
+#    response_body = dumps({'message' :'Pulse test successful'})
+#    return func.HttpResponse(body=response_body,status_code=200)
 
 ###Storage functions
 
